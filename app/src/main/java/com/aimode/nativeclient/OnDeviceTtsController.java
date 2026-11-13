@@ -36,6 +36,7 @@ public final class OnDeviceTtsController {
     private volatile TextToSpeech engine;
     private volatile boolean released;
     private boolean engineReady;
+    private boolean languageDataMissing;
     private boolean tryingGoogleEngine;
     private boolean defaultFallbackTried;
     private int requestGeneration;
@@ -75,7 +76,11 @@ public final class OnDeviceTtsController {
             pendingText = text;
             setPageSpeaking(true);
 
-            if (engineReady) {
+            if (languageDataMissing) {
+                showToast("A voz Português (Brasil) precisa ser instalada. Abrindo as opções de voz…");
+                openVoiceDataInstaller();
+                setPageSpeaking(false);
+            } else if (engineReady) {
                 speakPendingText(requestId);
             } else {
                 showToast("Preparando a voz em português…");
@@ -98,6 +103,25 @@ public final class OnDeviceTtsController {
         });
     }
 
+    public void onResume() {
+        mainHandler.post(() -> {
+            if (released || activity.isFinishing() || !languageDataMissing) return;
+
+            TextToSpeech previous = engine;
+            engine = null;
+            engineReady = false;
+            languageDataMissing = false;
+            if (previous != null) {
+                try {
+                    previous.shutdown();
+                } catch (Exception ignored) {
+                }
+            }
+
+            initializeEngine(googleEngineInstalled());
+        });
+    }
+
     public void release() {
         released = true;
         requestGeneration++;
@@ -105,6 +129,7 @@ public final class OnDeviceTtsController {
         TextToSpeech current = engine;
         engine = null;
         engineReady = false;
+        languageDataMissing = false;
         if (current != null) {
             try {
                 current.stop();
@@ -180,12 +205,16 @@ public final class OnDeviceTtsController {
             if (languageStatus == TextToSpeech.LANG_MISSING_DATA
                     || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
                 engineReady = false;
-                showToast("A voz Português (Brasil) não está instalada. Abrindo as opções de voz…");
-                openVoiceDataInstaller();
-                setPageSpeaking(false);
+                languageDataMissing = true;
+                if (pendingText != null) {
+                    showToast("A voz Português (Brasil) precisa ser instalada. Abrindo as opções de voz…");
+                    openVoiceDataInstaller();
+                    setPageSpeaking(false);
+                }
                 return;
             }
 
+            languageDataMissing = false;
             selectBrazilianVoice(current, portuguese);
             current.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String utteranceId) {
@@ -231,15 +260,19 @@ public final class OnDeviceTtsController {
                 if (locale == null || !"pt".equalsIgnoreCase(locale.getLanguage())) continue;
 
                 boolean brazil = "BR".equalsIgnoreCase(locale.getCountry());
-                boolean networkOnly = voice.getFeatures() != null
-                        && voice.getFeatures().contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS);
-                if (!brazil) continue;
+                Set<String> features = voice.getFeatures();
+                if (!brazil || (features != null
+                        && features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED))) {
+                    continue;
+                }
 
+                boolean networkOnly = features != null
+                        && features.contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS);
+                boolean bestNetworkOnly = best != null && best.getFeatures() != null
+                        && best.getFeatures().contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS);
                 if (best == null
-                        || (best.getFeatures() != null
-                            && best.getFeatures().contains(TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS)
-                            && !networkOnly)
-                        || voice.getQuality() > best.getQuality()) {
+                        || (bestNetworkOnly && !networkOnly)
+                        || (bestNetworkOnly == networkOnly && voice.getQuality() > best.getQuality())) {
                     best = voice;
                 }
             }
