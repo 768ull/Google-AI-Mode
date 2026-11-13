@@ -2,11 +2,11 @@
 
 Aplicativo Android em Java para o Modo IA, sem barras do Chrome, com tema do sistema, tela imersiva e WebView do Android/Chromium.
 
-## Versão 1.5.0
+## Versão 1.6.0
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 15
-- versionName: `1.5.0`
+- versionCode: 16
+- versionName: `1.6.0`
 - minSdk: 26 (Android 8.0)
 - ABI: ARM64
 
@@ -30,3 +30,8 @@ A publicação release exige a chave permanente guardada fora do repositório e 
 O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, somente um APK de teste separado e um arquivo unsigned de entrada privada são gerados; o arquivo unsigned não pode ser instalado. O PKCS#12 e os valores dos Secrets nunca devem ser adicionados a este repositório público.
 
 Este projeto independente não é afiliado nem endossado pelo Google.
+
+
+## Comportamento da tela inicial
+
+Na tela inicial do Modo IA, o movimento vertical é bloqueado para manter o layout estático conforme a referência. Ao entrar em uma conversa, a rolagem vertical normal é restaurada para permitir navegar pelas mensagens.
