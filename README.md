@@ -25,13 +25,13 @@ A publicação release exige a chave permanente guardada fora do repositório e 
 - `ANDROID_KEYSTORE_BASE64`: conteúdo Base64 do arquivo `aimode-upload.p12`.
 - `ANDROID_SIGNING_PASSWORD`: senha do keystore e da chave.
 - Alias obrigatório: `aimode-upload`.
-- Certificado SHA-256 esperado: `C4:10:FD:CA:23:5C:0D:D4:50:1B:09:73:39:F0:02:CB:6E:6C:C8:82:FC:51:C3:5F:C4:36:CD:88:8E:67:15:80`.
+- Certificado SHA-256 esperado: `0E:E2:BA:96:CF:B6:CD:09:64:C3:C2:AA:A7:58:77:D7:A5:C8:F8:B2:8C:74:99:E5:24:C6:94:90:93:1F:8C:24`.
 
-O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, somente um APK de teste separado e um arquivo unsigned de entrada privada são gerados; o arquivo unsigned não pode ser instalado. O PKCS#12 e os valores dos Secrets nunca devem ser adicionados a este repositório público.
+O workflow verifica a impressão digital antes de assinar e valida V1, V2, V3 e V4 (incluindo o arquivo `.idsig`). Sem os dois Secrets, somente um APK de teste separado e um arquivo unsigned de entrada privada são gerados; o arquivo unsigned não pode ser instalado. O PKCS#12 e os valores dos Secrets nunca devem ser adicionados a este repositório público.
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
 
-## Comportamento da tela inicial
+## Nova chave de assinatura\n\nA chave permanente foi rotacionada. O novo certificado SHA-256 é `0E:E2:BA:96:CF:B6:CD:09:64:C3:C2:AA:A7:58:77:D7:A5:C8:F8:B2:8C:74:99:E5:24:C6:94:90:93:1F:8C:24`. Cadastre o P12 em Base64 e a senha nos Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. Nunca faça commit da chave privada. APKs instalados com certificados antigos exigem desinstalação única antes da migração.\n\n## Comportamento da tela inicial
 
 Na tela inicial do Modo IA, o movimento vertical é bloqueado para manter o layout estático conforme a referência. Ao entrar em uma conversa, a rolagem vertical normal é restaurada para permitir navegar pelas mensagens.
