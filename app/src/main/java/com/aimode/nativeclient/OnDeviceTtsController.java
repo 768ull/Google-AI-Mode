@@ -3,6 +3,7 @@ package com.aimode.nativeclient;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
@@ -40,7 +41,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * in the app-private files directory; inference and playback then work offline.
  */
 public final class OnDeviceTtsController {
+    // Keep the upstream filename unchanged: MediaPipe uses it to detect PocketTTS.
     private static final String MODEL_NAME = "pocket_tts_pt_int8.litertlm";
+    private static final String MODEL_CACHE_PREFS = "aimode_tts_cache";
+    private static final String MODEL_CACHE_VERSION_KEY = "pocket_tts_runtime_version";
+    private static final int MODEL_CACHE_VERSION = 2;
     private static final String MODEL_URL =
             "https://huggingface.co/litert-community/pocket-tts/resolve/main/"
                     + MODEL_NAME + "?download=true";
@@ -67,6 +72,28 @@ public final class OnDeviceTtsController {
     public OnDeviceTtsController(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
+        refreshModelForRuntimeUpgrade();
+    }
+
+    /*
+     * The previous app release cached a PocketTTS bundle with the older
+     * MediaPipe/LiteRT-LM runtime. Remove only that disposable model cache once
+     * after upgrading the runtime so the new runtime receives a fresh bundle.
+     */
+    private void refreshModelForRuntimeUpgrade() {
+        SharedPreferences preferences = activity.getSharedPreferences(
+                MODEL_CACHE_PREFS, Activity.MODE_PRIVATE);
+        int cachedVersion = preferences.getInt(MODEL_CACHE_VERSION_KEY, 0);
+        if (cachedVersion == MODEL_CACHE_VERSION) return;
+
+        File oldModel = modelFile();
+        if (oldModel.exists() && !oldModel.delete()) {
+            oldModel.deleteOnExit();
+        }
+        File partial = new File(activity.getFilesDir(), MODEL_NAME + ".download");
+        if (partial.exists()) partial.delete();
+
+        preferences.edit().putInt(MODEL_CACHE_VERSION_KEY, MODEL_CACHE_VERSION).apply();
     }
 
     public void speak(String rawText) {
@@ -202,7 +229,7 @@ public final class OnDeviceTtsController {
             activeConnection = connection;
             connection.setInstanceFollowRedirects(true);
             connection.setConnectTimeout(30_000);
-            connection.setReadTimeout(90_000);
+            connection.setReadTimeout(180_000);
             connection.setRequestProperty("User-Agent", "Google-AI-Mode-Android/1.0");
             connection.setRequestProperty("Accept", "application/octet-stream");
             connection.connect();
