@@ -1,5 +1,5 @@
 name: Android APK
-# 1.6.0: lock vertical scrolling on landing screen; release key fingerprint rotated.
+# 1.6.0: static landing screen; test builds continue when release signing Secrets are absent.
 
 on:
   push:
@@ -36,8 +36,9 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
-      # A release build must never report success while skipping signing.
-      - name: Require permanent release signing key
+      # Keep test APK builds available even when private release Secrets have not
+      # been configured. Only the signed release upload is conditional.
+      - name: Detect permanent release signing key
         id: signing
         if: github.event_name != 'pull_request'
         env:
@@ -46,10 +47,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || { echo "::error title=Missing release key::Add ANDROID_KEYSTORE_BASE64 to Repository Secrets."; exit 1; }
-          [[ -n "$ANDROID_SIGNING_PASSWORD" ]] || { echo "::error title=Missing signing password::Add ANDROID_SIGNING_PASSWORD to Repository Secrets."; exit 1; }
-          echo "available=true" >> "$GITHUB_OUTPUT"
-          echo "Permanent signing secrets are present."
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_SIGNING_PASSWORD" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Permanent release signing Secrets are available."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Release signing Secrets not configured::The installable side-by-side debug APK will still be built. The permanent release APK will not be produced until both Repository Secrets are configured."
+          fi
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -106,6 +110,18 @@ jobs:
           name: ai-mode-1.6.0-debug-side-by-side-test-only
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Explain release signing handoff when Secrets are missing
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
+        shell: bash
+        run: |
+          {
+            echo "### Test APK created; permanent release signing still needs setup"
+            echo
+            echo "The side-by-side debug APK is installable for testing. No release APK was signed or published."
+            echo
+            echo "Add both Repository Secrets: ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD. Then run this workflow again for the V1/V2/V3/V4 signed release."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload permanently signed release APK and V4 signature
         if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
