@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.aimode.nativeclient'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.aimode.nativeclient'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.17.0'
+    implementation 'androidx.webkit:webkit:1.18.0'
+}
