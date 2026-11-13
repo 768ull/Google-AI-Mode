@@ -20,8 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Require permanent signing key for manual release runs
-        if: github.event_name == 'workflow_dispatch' && env.HAS_RELEASE_KEY != 'true'
+      - name: Require permanent signing key for published builds
+        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
         run: |
           echo "::error title=Release signing key missing::Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions, then run this workflow again."
           exit 1
@@ -61,15 +61,11 @@ jobs:
           ANDROID_KEY_ALIAS: aimode-upload
         run: |
           bash scripts/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release.apk
-      - name: Warn when permanent key has not been configured
-        if: env.HAS_RELEASE_KEY != 'true' && github.event_name != 'workflow_dispatch'
-        run: |
-          echo "::warning title=Permanent signing key not configured::Only a debug APK will be uploaded. Do not use it to update an installed release."
-      - name: Upload debug test APK only
-        if: env.HAS_RELEASE_KEY != 'true'
+      - name: Upload debug APK for fork pull requests only
+        if: github.event_name == 'pull_request' && env.HAS_RELEASE_KEY != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-debug-test-only
+          name: ai-mode-debug-pr-test-only
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
       - name: Upload signed release APK and V4 signature
