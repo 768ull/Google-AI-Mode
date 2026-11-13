@@ -97,10 +97,28 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         boolean dark = isNightModeEnabled();
         Window window = getWindow();
+
+        // Draw the app behind the front-camera cutout instead of letterboxing
+        // the entire WebView below a black safe-area strip.
+        if (Build.VERSION.SDK_INT >= 35) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+            window.setAttributes(lp);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(lp);
+        }
+
         WindowCompat.setDecorFitsSystemWindows(window, false);
-        window.setStatusBarColor(ContextCompat.getColor(this, R.color.app_surface));
-        window.setNavigationBarColor(ContextCompat.getColor(this, R.color.app_surface));
-        if (Build.VERSION.SDK_INT >= 29) window.setNavigationBarContrastEnforced(false);
+        window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        window.setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
         WindowInsetsControllerCompat bars = new WindowInsetsControllerCompat(window, window.getDecorView());
         bars.setAppearanceLightStatusBars(!dark);
         bars.setAppearanceLightNavigationBars(!dark);
@@ -110,10 +128,16 @@ public final class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(ContextCompat.getColor(this, R.color.app_background));
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
-            Insets sys = insets.getInsets(WindowInsetsCompat.Type.systemBars()
-                    | WindowInsetsCompat.Type.displayCutout());
+            Insets safeSides = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(sys.left, sys.top, sys.right, Math.max(sys.bottom, ime.bottom));
+
+            // Do not apply the top display-cutout safe inset as root padding:
+            // it was creating the black band above the app on punch-hole devices.
+            // Keep side cutout safety and let the keyboard move the content only
+            // while the IME is actually visible.
+            v.setPadding(safeSides.left, 0, safeSides.right, ime.bottom);
             return insets;
         });
 
