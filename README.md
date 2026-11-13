@@ -36,7 +36,7 @@ gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
 
 ## Assinatura permanente para atualizações
 
-A chave PKCS#12 privada fica fora do repositório público. Os Secrets esperados no GitHub são ANDROID_KEYSTORE_BASE64 e ANDROID_SIGNING_PASSWORD. O alias é aimode-upload. Sem os dois Secrets, o workflow publica somente APK debug de teste, não um release para atualização.
+A chave PKCS#12 privada fica fora do repositório público. Os Secrets esperados no GitHub são ANDROID_KEYSTORE_BASE64 e ANDROID_SIGNING_PASSWORD. O alias é aimode-upload. Em eventos push e workflow_dispatch, o workflow interrompe a execução imediatamente se os Secrets não existirem; assim, não mostra uma compilação de publicação como concluída sem assinatura. Somente pull requests de forks sem acesso a Secrets podem gerar um APK debug de teste, que não deve ser instalado como atualização.
 
 O script habilita e verifica V1, V2 e V3 dentro do APK, e cria V4 em um arquivo .idsig separado. A primeira migração de APK debug para release assinado exige instalação separada; depois, futuras atualizações podem instalar por cima desde que a chave e o applicationId não mudem.
 
