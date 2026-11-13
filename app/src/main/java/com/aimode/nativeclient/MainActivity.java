@@ -4,13 +4,12 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
@@ -26,6 +25,7 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -41,6 +41,28 @@ public final class MainActivity extends Activity {
     private static final int MIC_PERMISSION = 4102;
     private static final String STATE = "web_state";
     private static final String AI_MODE = "https://www.google.com/search?udm=50&aep=43&cud=0";
+
+    /*
+     * Suppress Android/WebView text-selection context menus on static chrome/UI.
+     * Keep native editing, the prompt box, and identifiable AI/user conversation
+     * turns selectable so typing and copying conversation text remain available.
+     */
+    private static final String CONTEXT_GUARD =
+            "(function(){if(window.__aimodeContextGuardInstalled)return;" +
+            "window.__aimodeContextGuardInstalled=true;" +
+            "var editor='input,textarea,select,[contenteditable=\"true\"],[role=\"textbox\"],[aria-multiline=\"true\"]';" +
+            "var conversation='article,[role=\"article\"],[data-message-id],[data-message-author-role]," +
+            "[data-testid*=\"message\"],[data-testid*=\"conversation\"],[data-conversation-id]," +
+            "[data-turn-id],[data-conversation-turn],[class*=\"message-content\"]," +
+            "[class*=\"conversation-turn\"],[class*=\"model-response\"],[class*=\"user-query\"]';" +
+            "function keep(target){if(!target||!target.closest)return false;" +
+            "return !!(target.closest(editor)||target.closest(conversation));}" +
+            "function block(e){if(keep(e.target))return;" +
+            "e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();}" +
+            "document.addEventListener('contextmenu',block,true);" +
+            "document.addEventListener('selectstart',block,true);" +
+            "})();";
+
     private WebView web;
     private ProgressBar progress;
     private LinearLayout error;
@@ -49,18 +71,19 @@ public final class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
+        boolean dark = isNightModeEnabled();
         Window window = getWindow();
         WindowCompat.setDecorFitsSystemWindows(window, false);
-        window.setStatusBarColor(Color.rgb(23, 24, 27));
-        window.setNavigationBarColor(Color.rgb(23, 24, 27));
+        window.setStatusBarColor(ContextCompat.getColor(this, R.color.app_surface));
+        window.setNavigationBarColor(ContextCompat.getColor(this, R.color.app_surface));
         if (Build.VERSION.SDK_INT >= 29) window.setNavigationBarContrastEnforced(false);
         WindowInsetsControllerCompat bars = new WindowInsetsControllerCompat(window, window.getDecorView());
-        bars.setAppearanceLightStatusBars(false);
-        bars.setAppearanceLightNavigationBars(false);
+        bars.setAppearanceLightStatusBars(!dark);
+        bars.setAppearanceLightNavigationBars(!dark);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(32, 33, 36));
+        root.setBackgroundColor(ContextCompat.getColor(this, R.color.app_background));
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets sys = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
@@ -85,13 +108,19 @@ public final class MainActivity extends Activity {
         } else web.loadUrl(AI_MODE);
     }
 
+    private boolean isNightModeEnabled() {
+        int mode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return mode == Configuration.UI_MODE_NIGHT_YES;
+    }
+
     private WebView createWebView() {
         WebView view = new WebView(this);
-        view.setBackgroundColor(Color.rgb(32, 33, 36));
+        view.setBackgroundColor(ContextCompat.getColor(this, R.color.app_background));
         view.setVerticalScrollBarEnabled(false);
         view.setHorizontalScrollBarEnabled(false);
         view.setOverScrollMode(View.OVER_SCROLL_NEVER);
         view.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+
         WebSettings s = view.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -106,21 +135,41 @@ public final class MainActivity extends Activity {
         s.setSupportMultipleWindows(false);
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+
+        // Follow Android's current light/dark theme. Google pages that implement
+        // prefers-color-scheme use their own dark palette; algorithmic darkening
+        // is a fallback for content without a dark palette.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(s, isNightModeEnabled());
+        }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
             WebSettingsCompat.setSafeBrowsingEnabled(s, true);
         }
+
         view.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
-                return u == null || !"https".equalsIgnoreCase(u.getScheme()) || !googleHost(u.getHost());
+                if (u == null || !"https".equalsIgnoreCase(u.getScheme())) return true;
+
+                // The Google "G" home link must be a no-op inside AI Mode.
+                // It must never launch Chrome or leave this dedicated screen.
+                if (isGoogleHome(u)) return true;
+
+                // Only Google-owned HTTPS destinations are kept in this app.
+                // External schemes and non-Google sites are intentionally blocked.
+                return !googleHost(u.getHost());
             }
+
             @Override public void onPageStarted(WebView v, String url, android.graphics.Bitmap icon) {
                 progress.setVisibility(View.VISIBLE);
                 error.setVisibility(View.GONE);
             }
+
             @Override public void onPageFinished(WebView v, String url) {
                 progress.setVisibility(View.GONE);
+                v.evaluateJavascript(CONTEXT_GUARD, null);
             }
+
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
                 if (r.isForMainFrame()) {
                     progress.setVisibility(View.GONE);
@@ -128,10 +177,12 @@ public final class MainActivity extends Activity {
                 }
             }
         });
+
         view.setWebChromeClient(new WebChromeClient() {
             @Override public void onProgressChanged(WebView v, int value) {
                 progress.setVisibility(value >= 100 ? View.GONE : View.VISIBLE);
             }
+
             @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> callback,
                                                         FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
@@ -146,8 +197,9 @@ public final class MainActivity extends Activity {
                     if (valid.size() == 1) pick.setType(valid.get(0));
                     else if (!valid.isEmpty()) pick.putExtra(Intent.EXTRA_MIME_TYPES, valid.toArray(new String[0]));
                 }
-                if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE)
+                if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) {
                     pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                }
                 try {
                     startActivityForResult(Intent.createChooser(pick, getString(R.string.choose_file)), PICK_FILE);
                     return true;
@@ -156,12 +208,15 @@ public final class MainActivity extends Activity {
                     return false;
                 }
             }
+
             @Override public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> requestWebPermission(request));
             }
+
             @Override public void onPermissionRequestCanceled(PermissionRequest request) {
                 if (audioRequest == request) audioRequest = null;
             }
+
             @Override public boolean onCreateWindow(WebView v, boolean dialog, boolean gesture,
                                                      android.os.Message result) {
                 return false;
@@ -170,17 +225,28 @@ public final class MainActivity extends Activity {
         return view;
     }
 
+    private boolean isGoogleHome(Uri uri) {
+        if (!googleOrigin(uri.getHost())) return false;
+        String path = uri.getPath();
+        return path == null || path.isEmpty() || "/".equals(path) || "/webhp".equals(path);
+    }
+
     private void requestWebPermission(PermissionRequest request) {
         String host = Uri.parse(request.getOrigin().toString()).getHost();
         boolean audio = false;
         for (String item : request.getResources()) {
             if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(item)) audio = true;
         }
-        if (!googleOrigin(host) || !audio) { request.deny(); return; }
+        if (!googleOrigin(host) || !audio) {
+            request.deny();
+            return;
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             audioRequest = request;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION);
-        } else request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+        } else {
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+        }
     }
 
     private boolean googleHost(String host) {
@@ -203,13 +269,15 @@ public final class MainActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
         panel.setPadding(dp(30), dp(24), dp(30), dp(24));
-        panel.setBackgroundColor(Color.rgb(32, 33, 36));
+        panel.setBackgroundColor(ContextCompat.getColor(this, R.color.app_background));
+
         TextView message = new TextView(this);
         message.setText(R.string.connection_error);
-        message.setTextColor(Color.WHITE);
+        message.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
         message.setTextSize(16);
         message.setGravity(Gravity.CENTER);
         panel.addView(message, new LinearLayout.LayoutParams(-1, -2));
+
         Button retry = new Button(this);
         retry.setText(R.string.retry);
         retry.setOnClickListener(v -> {
@@ -236,7 +304,9 @@ public final class MainActivity extends Activity {
                 int n = data.getClipData().getItemCount();
                 selected = new Uri[n];
                 for (int i = 0; i < n; i++) selected[i] = data.getClipData().getItemAt(i).getUri();
-            } else if (data.getData() != null) selected = new Uri[]{data.getData()};
+            } else if (data.getData() != null) {
+                selected = new Uri[]{data.getData()};
+            }
         }
         if (fileCallback != null) {
             fileCallback.onReceiveValue(selected);
@@ -247,9 +317,11 @@ public final class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code == MIC_PERMISSION && audioRequest != null) {
-            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED)
+            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
                 audioRequest.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
-            else audioRequest.deny();
+            } else {
+                audioRequest.deny();
+            }
             audioRequest = null;
         }
     }

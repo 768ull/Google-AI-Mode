@@ -1,24 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AI Mode</string>
     <string name="connection_error">Não foi possível carregar o Modo IA. Verifique sua conexão e tente novamente.</string>
     <string name="retry">Tentar novamente</string>
     <string name="choose_file">Selecionar arquivo</string>
 
-    <color name="app_background">#202124</color>
-    <color name="app_surface">#17181B</color>
+    <color name="app_background">#FFFFFF</color>
+    <color name="app_surface">#F1F3F4</color>
+    <color name="text_primary">#202124</color>
     <color name="icon_background">#020205</color>
     <color name="splash_background">#020205</color>
-
-    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#8AB4F8</item>
-        <item name="android:windowBackground">@color/app_background</item>
-        <item name="android:statusBarColor">@color/app_surface</item>
-        <item name="android:navigationBarColor">@color/app_surface</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowFullscreen">false</item>
-    </style>
 </resources>
