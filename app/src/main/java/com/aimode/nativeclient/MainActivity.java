@@ -98,24 +98,24 @@ public final class MainActivity extends Activity {
      * this script only extracts the current answer when that button is tapped.
      */
     private static final String SPEAKER_BUTTONS =
-            "(function(){if(window.__aimodeReadLatestAnswer)return;" +
-            "function clean(node){var clone=node.cloneNode(true);" +
-            "clone.querySelectorAll('button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,[role=button],[role=link],[role=navigation],[aria-hidden=true],[contenteditable=true]').forEach(function(e){e.remove();});" +
-            "return (clone.innerText||clone.textContent||'').replace(/\\u00a0/g,' ').replace(/[ \\t]+/g,' ').replace(/\\n{3,}/g,'\\n\\n').trim();}" +
-            "function visible(node){if(!node||!node.getBoundingClientRect)return false;var r=node.getBoundingClientRect();var st=getComputedStyle(node);return r.width>0&&r.height>0&&st.display!=='none'&&st.visibility!=='hidden';}" +
-            "function read(){var selectors='[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],model-response,.model-response,.model-response-text,.response-content,[role=article]';" +
-            "var found=Array.from(document.querySelectorAll(selectors)).filter(visible).map(function(n){return {node:n,text:clean(n)};}).filter(function(x){return x.text.length>=80&&x.text.length<=20000;});" +
-            "if(found.length){found.sort(function(a,b){return a.node.compareDocumentPosition(b.node)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1;});" +
-            "var candidate=found[found.length-1];" +
-            "for(var i=found.length-2;i>=0;i--){if(candidate.text.indexOf(found[i].text)>=0&&found[i].text.length>candidate.text.length*0.65)candidate=found[i];}" +
-            "if(candidate.text.length>=80)return candidate.text;}" +
-            "var root=document.querySelector('main,[role=main]')||document.body;" +
-            "var paragraphs=Array.from(root.querySelectorAll('p,li,h1,h2,h3,h4,[role=paragraph]')).filter(visible).map(clean).filter(function(t){return t.length>=35;});" +
-            "if(paragraphs.length){var joined=paragraphs.join('\\n\\n');if(joined.length>=80)return joined.slice(-16000);}" +
-            "var text=clean(root);if(text.length>=80)return text.slice(-16000);" +
-            "return '';}" +
-            "window.__aimodeReadLatestAnswer=function(){var text=read();if(text&&window.AIModeSpeech){window.AIModeSpeech.speak(text);}else if(window.AIModeSpeech&&window.AIModeSpeech.setSpeaking){window.AIModeSpeech.setSpeaking(false);}};" +
-            "window.__aimodeSetSpeechState=function(active){if(window.AIModeSpeech&&window.AIModeSpeech.setSpeaking){window.AIModeSpeech.setSpeaking(!!active);}};" +
+            "(function(){if(window.__aimodeAudioControlsInstalled)return;" +
+            "window.__aimodeAudioControlsInstalled=true;" +
+            "var selector='[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],[data-testid*=response],[data-testid*=answer],[data-response-id],model-response,.model-response,.model-response-text,.response-content,[role=article]';" +
+            "var style=document.createElement('style');style.id='aimode-inline-audio-style';" +
+            "style.textContent='.aimode-audio-row{display:flex;align-items:center;justify-content:flex-start;width:100%;margin:10px 0 2px;padding:0;background:transparent;}.aimode-audio-button{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:5px 12px;border:1px solid color-mix(in srgb,currentColor 28%,transparent);border-radius:18px;background:transparent;color:inherit;font:500 13px/1.2 inherit;letter-spacing:normal;cursor:pointer;opacity:.88;box-shadow:none;-webkit-tap-highlight-color:transparent}.aimode-audio-button:active{opacity:.65}.aimode-audio-button .aimode-audio-icon{font-size:15px}.aimode-audio-button[aria-pressed=true]{border-color:#1a73e8;color:#1a73e8}' ;" +
+            "(document.head||document.documentElement).appendChild(style);" +
+            "function visible(n){if(!n||!n.getBoundingClientRect)return false;var r=n.getBoundingClientRect(),s=getComputedStyle(n);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}" +
+            "function clean(n){var x=n.cloneNode(true);x.querySelectorAll('button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,[role=button],[role=link],[role=navigation],[aria-hidden=true],[contenteditable=true],.aimode-audio-row').forEach(function(e){e.remove();});return (x.innerText||x.textContent||'').replace(/\\u00a0/g,' ').replace(/[ \\t]+/g,' ').replace(/\\n{3,}/g,'\\n\\n').trim();}" +
+            "function findAnswers(){var root=document.querySelector('main,[role=main]')||document.body;var nodes=Array.from(root.querySelectorAll(selector)).filter(visible).map(function(n){return {node:n,text:clean(n)};}).filter(function(x){return x.text.length>=70&&x.text.length<=20000;});" +
+            "if(!nodes.length){var blocks=Array.from(root.querySelectorAll('article,[role=article],section,[aria-live=polite]')).filter(visible).map(function(n){return {node:n,text:clean(n)};}).filter(function(x){return x.text.length>=100&&x.text.length<=16000;});nodes=blocks;}" +
+            "if(!nodes.length){var ps=Array.from(root.querySelectorAll('p,li,[role=paragraph]')).filter(visible).filter(function(p){return clean(p).length>=70;});ps.forEach(function(p){var n=p.parentElement,best=n;while(n&&n!==root){var t=clean(n);if(t.length>16000||n.querySelector('textarea,input,[contenteditable=true]'))break;if(t.length<=Math.max(300,clean(best).length*1.7)){best=n;n=n.parentElement;}else break;}if(best)nodes.push({node:best,text:clean(best)});});}" +
+            "nodes.sort(function(a,b){if(a.node===b.node)return 0;return a.node.compareDocumentPosition(b.node)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1;});" +
+            "var unique=[];nodes.forEach(function(x){if(!x.text)return;var existing=unique.findIndex(function(y){return y.node.contains(x.node)||x.node.contains(y.node);});if(existing<0)unique.push(x);else{var y=unique[existing];if(x.node.contains(y.node)){if(x.text.length>=y.text.length*.72)unique[existing]=x;}else if(y.text.length<x.text.length*.72){unique[existing]=x;}}});return unique;}" +
+            "function setActive(button,active){if(!button)return;button.setAttribute('aria-pressed',active?'true':'false');button.innerHTML=active?'<span class=aimode-audio-icon>■</span><span>Parar áudio</span>':'<span class=aimode-audio-icon>🔊</span><span>Ouvir</span>';}" +
+            "function addControls(){findAnswers().forEach(function(answer){var node=answer.node;if(!node||node.querySelector(':scope > .aimode-audio-row'))return;var row=document.createElement('div');row.className='aimode-audio-row';var button=document.createElement('button');button.type='button';button.className='aimode-audio-button';button.setAttribute('aria-label','Ouvir esta resposta do Modo IA');setActive(button,false);button.addEventListener('click',function(){if(button.getAttribute('aria-pressed')==='true'){if(window.AIModeSpeech)window.AIModeSpeech.stop();setActive(button,false);window.__aimodeCurrentAudioButton=null;return;}var text=clean(node);if(!text||!window.AIModeSpeech){return;}if(window.__aimodeCurrentAudioButton&&window.__aimodeCurrentAudioButton!==button)setActive(window.__aimodeCurrentAudioButton,false);window.__aimodeCurrentAudioButton=button;setActive(button,true);window.AIModeSpeech.speak(text);});row.appendChild(button);node.appendChild(row);});}" +
+            "window.__aimodeSetSpeechState=function(active){var button=window.__aimodeCurrentAudioButton;if(button)setActive(button,!!active);if(!active)window.__aimodeCurrentAudioButton=null;};" +
+            "var pending=false;function schedule(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;addControls();});}" +
+            "addControls();var observer=new MutationObserver(schedule);observer.observe(document.documentElement,{childList:true,subtree:true});window.__aimodeAudioObserver=observer;" +
             "})();";
 
 
@@ -125,8 +125,6 @@ public final class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest audioRequest;
     private OnDeviceTtsController speech;
-    private Button speakerButton;
-    private boolean isSpeaking = false;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -183,12 +181,6 @@ public final class MainActivity extends Activity {
         error = createErrorPanel();
         error.setVisibility(View.GONE);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
-        speakerButton = createSpeakerButton();
-        speakerButton.setVisibility(View.GONE);
-        FrameLayout.LayoutParams speakerParams =
-                new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-        speakerParams.setMargins(dp(12), dp(12), dp(16), dp(92));
-        root.addView(speakerButton, speakerParams);
         FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP);
         root.addView(progress, pp);
         root.addView(error, new FrameLayout.LayoutParams(-1, -1));
@@ -274,7 +266,6 @@ public final class MainActivity extends Activity {
                 v.evaluateJavascript(PAGE_CLEANUP, null);
                 v.evaluateJavascript(CONTEXT_GUARD, null);
                 v.evaluateJavascript(SPEAKER_BUTTONS, null);
-                if (speakerButton != null) speakerButton.setVisibility(View.VISIBLE);
             }
 
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
@@ -332,42 +323,6 @@ public final class MainActivity extends Activity {
         return view;
     }
 
-    private Button createSpeakerButton() {
-        Button button = new Button(this);
-        button.setText("🔊 Ouvir resposta");
-        button.setAllCaps(false);
-        button.setTextSize(14);
-        button.setTextColor(android.graphics.Color.WHITE);
-        android.graphics.drawable.GradientDrawable shape =
-                new android.graphics.drawable.GradientDrawable();
-        shape.setColor(android.graphics.Color.rgb(26, 115, 232));
-        shape.setCornerRadius(dp(28));
-        button.setBackground(shape);
-        button.setElevation(dp(6));
-        button.setPadding(dp(18), dp(8), dp(18), dp(8));
-        button.setContentDescription("Ouvir a última resposta da inteligência artificial");
-        button.setOnClickListener(v -> {
-            if (isSpeaking) {
-                if (speech != null) speech.stop();
-                setSpeechButtonState(false);
-            } else if (web != null) {
-                web.evaluateJavascript(
-                        "if(window.__aimodeReadLatestAnswer){window.__aimodeReadLatestAnswer();}",
-                        null);
-            }
-        });
-        return button;
-    }
-
-    private void setSpeechButtonState(boolean active) {
-        runOnUiThread(() -> {
-            isSpeaking = active;
-            if (speakerButton != null) {
-                speakerButton.setText(active ? "■ Parar áudio" : "🔊 Ouvir resposta");
-            }
-        });
-    }
-
     private final class SpeechBridge {
         @JavascriptInterface
         public void speak(String text) {
@@ -377,7 +332,12 @@ public final class MainActivity extends Activity {
 
         @JavascriptInterface
         public void setSpeaking(boolean active) {
-            setSpeechButtonState(active);
+            WebView current = web;
+            if (current != null) {
+                current.post(() -> current.evaluateJavascript(
+                        "if(window.__aimodeSetSpeechState){window.__aimodeSetSpeechState("
+                                + active + ");}", null));
+            }
         }
 
         @JavascriptInterface
