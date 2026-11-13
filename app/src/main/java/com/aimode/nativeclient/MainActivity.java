@@ -93,9 +93,9 @@ public final class MainActivity extends Activity {
      * remains the source of the AI response; speech is synthesized locally.
      */
     /*
-     * The Google Search AI Mode page does not expose a stable assistant DOM
-     * selector. Read-aloud is therefore triggered by a native Android button;
-     * this script only extracts the current answer when that button is tapped.
+     * Inserts a compact read-aloud action into the matching assistant answer
+     * in the WebView. A MutationObserver adds the action to new answers as the
+     * conversation grows; no separate native overlay is placed over the page.
      */
     private static final String SPEAKER_BUTTONS =
             "(function(){if(window.__aimodeAudioControlsInstalled)return;" +
