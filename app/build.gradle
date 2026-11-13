@@ -8,10 +8,10 @@ android {
 
     defaultConfig {
         applicationId 'com.aimode.nativeclient'
-        minSdk 24
+        minSdk 26
         targetSdk 36
-        versionCode 5
-        versionName '1.0.4'
+        versionCode 6
+        versionName '1.0.5'
     }
 
     buildTypes {
@@ -48,4 +48,5 @@ android {
 dependencies {
     implementation 'androidx.core:core:1.17.0'
     implementation 'androidx.webkit:webkit:1.18.0'
+    implementation 'com.google.mediapipe:tasks-audio:1.2.0'
 }

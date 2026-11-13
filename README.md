@@ -20,7 +20,18 @@ V1, V2 e V3 são assinaturas dentro do APK. V4 é um arquivo lateral `.idsig`, p
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 5
-- versionName: `1.0.4`
+- versionCode: 6
+- versionName: `1.0.5`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
+
+## Áudio local das respostas (1.0.5)
+
+As respostas do Modo IA recebem um botão **🔊 Ouvir**. A fala é gerada no próprio aparelho com o MediaPipe Text-to-Speech do Google AI Edge e o modelo neural PocketTTS 100M INT8 em português do Brasil (voz padrão **Rafael**).
+
+- O modelo é baixado sob demanda na primeira reprodução (aprox. 126 MB) e armazenado no espaço privado do aplicativo.
+- Depois do download, a síntese e a reprodução funcionam offline; o conteúdo da resposta do Modo IA continua vindo do serviço online do Google.
+- A implementação usa CPU/LiteRT para não depender dos dispositivos Pixel/Samsung exigidos pela API GenAI TTS do ML Kit.
+- O modelo tem licença CC-BY-4.0. A arquitetura, os pesos e as vozes originais são de Kyutai; pacote LiteRT disponibilizado por LiteRT Community. Consulte https://huggingface.co/litert-community/pocket-tts para atribuição e termos.
+
+O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso, o minSdk desta versão passa a ser 26 (Android 8.0).

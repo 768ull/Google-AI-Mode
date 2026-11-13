@@ -12,6 +12,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -87,11 +88,46 @@ public final class MainActivity extends Activity {
             "document.addEventListener('selectstart',block,true);" +
             "})();";
 
+    /*
+     * Adds one read-aloud control to assistant response blocks only. The page
+     * remains the source of the AI response; speech is synthesized locally.
+     */
+    private static final String SPEAKER_BUTTONS =
+            "(function(){if(window.__aimodeSpeakerObserver)return;" +
+            "var selector='[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],model-response,.model-response,.model-response-text,.response-content';" +
+            "var buttonClass='aimode-native-speak-btn';" +
+            "var css='button.aimode-native-speak-btn{display:inline-flex;align-items:center;gap:6px;margin:10px 4px 4px 0;padding:6px 12px;border:1px solid currentColor;border-radius:999px;background:transparent;color:inherit;opacity:.78;font:500 13px sans-serif;cursor:pointer;}'" +
+            "button.aimode-native-speak-btn:active{opacity:1;}'" +
+            "button.aimode-native-speak-btn:focus-visible{outline:2px solid currentColor;outline-offset:2px;}';" +
+            "var style=document.getElementById('aimode-native-speech-style');" +
+            "if(!style){style=document.createElement('style');style.id='aimode-native-speech-style';(document.head||document.documentElement).appendChild(style);}" +
+            "style.textContent=css;" +
+            "function getText(node){var clone=node.cloneNode(true);" +
+            "clone.querySelectorAll('button,a,svg,script,style,nav,footer,header,table,pre,code,[aria-hidden=true],.aimode-native-speak-btn').forEach(function(e){e.remove();});" +
+            "return (clone.innerText||clone.textContent||'').replace(/\\s+/g,' ').trim();}" +
+            "window.__aimodeSetSpeechState=function(active){document.querySelectorAll('button.'+buttonClass).forEach(function(b){b.dataset.active=active?'1':'0';b.textContent=active?'■ Parar':'🔊 Ouvir';});};" +
+            "function addButtons(){document.querySelectorAll(selector).forEach(function(node){" +
+            "if(node.closest('button,a,[role=button]'))return;" +
+            "if(node.parentElement&&node.parentElement.closest(selector))return;" +
+            "if(node.querySelector('button.'+buttonClass))return;" +
+            "var value=getText(node);if(value.length<30)return;" +
+            "var button=document.createElement('button');button.type='button';button.className=buttonClass;button.textContent='🔊 Ouvir';button.setAttribute('aria-label','Ouvir resposta da inteligência artificial');" +
+            "button.addEventListener('click',function(event){event.preventDefault();event.stopPropagation();" +
+            "if(button.dataset.active==='1'){if(window.AIModeSpeech)window.AIModeSpeech.stop();window.__aimodeSetSpeechState(false);return;}" +
+            "var text=getText(node);if(text&&window.AIModeSpeech){window.__aimodeSetSpeechState(true);window.AIModeSpeech.speak(text);}" +
+            "});node.appendChild(button);" +
+            "});}" +
+            "addButtons();" +
+            "window.__aimodeSpeakerObserver=new MutationObserver(function(){clearTimeout(window.__aimodeSpeakerTimer);window.__aimodeSpeakerTimer=setTimeout(addButtons,180);});" +
+            "window.__aimodeSpeakerObserver.observe(document.documentElement,{childList:true,subtree:true});" +
+            "})();";
+
     private WebView web;
     private ProgressBar progress;
     private LinearLayout error;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest audioRequest;
+    private OnDeviceTtsController speech;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -142,6 +178,7 @@ public final class MainActivity extends Activity {
         });
 
         web = createWebView();
+        speech = new OnDeviceTtsController(this, web);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         error = createErrorPanel();
@@ -212,6 +249,8 @@ public final class MainActivity extends Activity {
             WebSettingsCompat.setSafeBrowsingEnabled(s, true);
         }
 
+        view.addJavascriptInterface(new SpeechBridge(), "AIModeSpeech");
+
         view.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
@@ -229,6 +268,7 @@ public final class MainActivity extends Activity {
                 progress.setVisibility(View.GONE);
                 v.evaluateJavascript(PAGE_CLEANUP, null);
                 v.evaluateJavascript(CONTEXT_GUARD, null);
+                v.evaluateJavascript(SPEAKER_BUTTONS, null);
             }
 
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
@@ -284,6 +324,20 @@ public final class MainActivity extends Activity {
             }
         });
         return view;
+    }
+
+    private final class SpeechBridge {
+        @JavascriptInterface
+        public void speak(String text) {
+            OnDeviceTtsController controller = speech;
+            if (controller != null) controller.speak(text);
+        }
+
+        @JavascriptInterface
+        public void stop() {
+            OnDeviceTtsController controller = speech;
+            if (controller != null) controller.stop();
+        }
     }
 
     private boolean isGoogleHome(Uri uri) {
@@ -403,6 +457,10 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (speech != null) {
+            speech.release();
+            speech = null;
+        }
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         if (web != null) {
             web.stopLoading();
