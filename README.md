@@ -45,4 +45,4 @@ O runtime MediaPipe Tasks Audio foi atualizado para **1.2.2**. Na primeira abert
 
 ### Assinatura estável (1.0.7 em diante)
 
-O workflow usa a chave permanente `aimode-upload` quando os Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD` estão cadastrados. Se os Secrets estiverem ausentes, a compilação ainda termina e publica um artefato de release **sem assinatura** para assinatura privada posterior. O PKCS#12 e os Secrets nunca devem ser adicionados ao repositório público.
+O workflow só publica um APK de release quando consegue assinar e validar o certificado permanente `aimode-upload` com os Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. Se os Secrets estiverem ausentes, o build pode terminar, mas **nenhum APK unsigned é publicado** para evitar que um arquivo sem assinatura seja confundido com um instalador. O PKCS#12 e os Secrets nunca devem ser adicionados ao repositório público.
