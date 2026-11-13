@@ -16,11 +16,10 @@ permissions:
 
 jobs:
   build:
-    name: Build and sign Android APK
+    name: Build Android APK
     runs-on: ubuntu-latest
     env:
       ANDROID_BUILD_TOOLS_VERSION: 36.0.0
-      HAS_RELEASE_KEY: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_SIGNING_PASSWORD != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,11 +35,28 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
-      - name: Require the permanent release signing key
-        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
+      # Detect the secrets without failing the entire build. When they are absent,
+      # upload the unsigned release APK so it can be signed with the owner's key
+      # outside the public repository.
+      - name: Check permanent release signing secrets
+        id: signing
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+        shell: bash
         run: |
-          echo "::error title=Permanent signing key missing::Add BOTH repository Actions secrets: ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD. Setup: https://github.com/768ull/Google-AI-Mode/settings/secrets/actions"
-          exit 1
+          set -euo pipefail
+          missing=()
+          [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || missing+=("ANDROID_KEYSTORE_BASE64")
+          [[ -n "$ANDROID_SIGNING_PASSWORD" ]] || missing+=("ANDROID_SIGNING_PASSWORD")
+          if (("${#missing[@]}" > 0)); then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Permanent release signing secrets missing::Missing Actions secret(s): ${missing[*]}. The build will continue and upload an unsigned release APK for signing with the owner's private key."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Both permanent signing secrets are available."
+          fi
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -55,8 +71,8 @@ jobs:
       - name: Build debug and release APKs
         run: gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
 
-      - name: Decode permanent release key
-        if: env.HAS_RELEASE_KEY == 'true'
+      - name: Decode and verify permanent release key
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_SIGNING_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
@@ -72,12 +88,13 @@ jobs:
           ACTUAL_FINGERPRINT="$(keytool -list -v -alias aimode-upload -keystore "$RUNNER_TEMP/aimode-upload.p12" -storetype PKCS12 -storepass "$ANDROID_SIGNING_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':')"
           EXPECTED_FINGERPRINT="C410FDCA235C0DD4501B097339F002CB6E6CC882FC51C35FC436CD888E671580"
           if [ "${ACTUAL_FINGERPRINT^^}" != "$EXPECTED_FINGERPRINT" ]; then
-            echo "::error title=Unexpected signing certificate::The supplied keystore does not match the permanent AI Mode upload key in the setup package."
+            echo "::error title=Unexpected signing certificate::The provided keystore does not match the AI Mode permanent upload key."
             exit 1
           fi
+          echo "Permanent upload certificate verified."
 
       - name: Sign release with APK Signature Schemes V1–V4
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         run: |
           bash scripts/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release.apk
 
@@ -89,8 +106,17 @@ jobs:
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
+      - name: Upload unsigned release APK for private signing
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-mode-release-unsigned-needs-private-signing
+          if-no-files-found: error
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 3
+
       - name: Upload permanently signed release APK and V4 signature
-        if: env.HAS_RELEASE_KEY == 'true'
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ai-mode-release-permanent-v1-v2-v3-v4
