@@ -97,26 +97,275 @@ public final class MainActivity extends Activity {
      * in the WebView. A MutationObserver adds the action to new answers as the
      * conversation grows; no separate native overlay is placed over the page.
      */
-    private static final String SPEAKER_BUTTONS =
-            "(function(){if(window.__aimodeAudioControlsInstalled)return;" +
-            "window.__aimodeAudioControlsInstalled=true;" +
-            "var selector='[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],[data-testid*=response],[data-testid*=answer],[data-response-id],model-response,.model-response,.model-response-text,.response-content';" +
-            "var style=document.createElement('style');style.id='aimode-inline-audio-style';" +
-            "style.textContent='.aimode-audio-row{display:flex;align-items:center;justify-content:flex-start;width:100%;margin:10px 0 2px;padding:0;background:transparent;}.aimode-audio-button{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:5px 12px;border:1px solid rgba(128,128,128,.38);border-radius:18px;background:transparent;color:inherit;font-family:inherit;font-size:13px;font-weight:500;line-height:1.2;letter-spacing:normal;cursor:pointer;opacity:.88;box-shadow:none;-webkit-tap-highlight-color:transparent}.aimode-audio-button:active{opacity:.65}.aimode-audio-button .aimode-audio-icon{font-size:15px}.aimode-audio-button[aria-pressed=true]{border-color:#1a73e8;color:#1a73e8}' ;" +
-            "(document.head||document.documentElement).appendChild(style);" +
-            "function visible(n){if(!n||!n.getBoundingClientRect)return false;var r=n.getBoundingClientRect(),s=getComputedStyle(n);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}" +
-            "function clean(n){var x=n.cloneNode(true);x.querySelectorAll('button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,[role=button],[role=link],[role=navigation],[aria-hidden=true],[contenteditable=true],.aimode-audio-row').forEach(function(e){e.remove();});return (x.innerText||x.textContent||'').replace(/\\u00a0/g,' ').replace(/[ \\t]+/g,' ').replace(/\\n{3,}/g,'\\n\\n').trim();}" +
-            "function findAnswers(){var root=document.querySelector('main,[role=main]')||document.body;var nodes=Array.from(root.querySelectorAll(selector)).filter(visible).map(function(n){return {node:n,text:clean(n)};}).filter(function(x){return x.text.length>=70&&x.text.length<=20000;});" +
-            "if(!nodes.length){var blocks=Array.from(root.querySelectorAll('article,[role=article],[aria-live=polite]')).filter(visible).map(function(n){return {node:n,text:clean(n)};}).filter(function(x){return x.text.length>=100&&x.text.length<=16000;});nodes=blocks;}" +
-            "if(!nodes.length){var ps=Array.from(root.querySelectorAll('p,li,[role=paragraph]')).filter(visible).filter(function(p){return clean(p).length>=70;});ps.forEach(function(p){var n=p.parentElement,best=n;while(n&&n!==root){var t=clean(n);if(t.length>16000||n.querySelector('textarea,input,[contenteditable=true]'))break;if(t.length<=Math.max(300,clean(best).length*1.7)){best=n;n=n.parentElement;}else break;}if(best)nodes.push({node:best,text:clean(best)});});}" +
-            "nodes.sort(function(a,b){if(a.node===b.node)return 0;return a.node.compareDocumentPosition(b.node)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1;});" +
-            "var unique=[];nodes.forEach(function(x){if(!x.text)return;var existing=unique.findIndex(function(y){return y.node.contains(x.node)||x.node.contains(y.node);});if(existing<0)unique.push(x);else{var y=unique[existing];if(x.node.contains(y.node)){if(y.text.length<x.text.length*.72)unique[existing]=x;}else if(x.text.length>=y.text.length*.72){unique[existing]=x;}}});return unique;}" +
-            "function setActive(button,active){if(!button)return;button.setAttribute('aria-pressed',active?'true':'false');button.innerHTML=active?'<span class=aimode-audio-icon>■</span><span>Parar áudio</span>':'<span class=aimode-audio-icon>🔊</span><span>Ouvir</span>';}" +
-            "function addControls(){findAnswers().forEach(function(answer){var node=answer.node;if(!node||node.querySelector(':scope > .aimode-audio-row'))return;var row=document.createElement('div');row.className='aimode-audio-row';var button=document.createElement('button');button.type='button';button.className='aimode-audio-button';button.setAttribute('aria-label','Ouvir esta resposta do Modo IA');setActive(button,false);button.addEventListener('click',function(){if(button.getAttribute('aria-pressed')==='true'){if(window.AIModeSpeech)window.AIModeSpeech.stop();setActive(button,false);window.__aimodeCurrentAudioButton=null;return;}var text=clean(node);if(!text||!window.AIModeSpeech){return;}if(window.__aimodeCurrentAudioButton&&window.__aimodeCurrentAudioButton!==button)setActive(window.__aimodeCurrentAudioButton,false);window.__aimodeCurrentAudioButton=button;setActive(button,true);window.AIModeSpeech.speak(text);});row.appendChild(button);node.appendChild(row);});}" +
-            "window.__aimodeSetSpeechState=function(active){var button=window.__aimodeCurrentAudioButton;if(button)setActive(button,!!active);if(!active)window.__aimodeCurrentAudioButton=null;};" +
-            "var pending=false;function schedule(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;addControls();});}" +
-            "addControls();var observer=new MutationObserver(schedule);observer.observe(document.documentElement,{childList:true,subtree:true});window.__aimodeAudioObserver=observer;" +
-            "})();";
+    private static final String SPEAKER_BUTTONS = """
+            (function () {
+              if (window.__aimodeAudioControlsInstalled) {
+                if (window.__aimodeEnsureAudioControls) window.__aimodeEnsureAudioControls();
+                return;
+              }
+              window.__aimodeAudioControlsInstalled = true;
+
+              var answerSelector =
+                '[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],' +
+                '[data-testid*=response],[data-testid*=answer],[data-response-id],' +
+                'model-response,.model-response,.model-response-text,.response-content';
+
+              var style = document.createElement('style');
+              style.id = 'aimode-inline-audio-style';
+              style.textContent =
+                '.aimode-audio-row{display:flex;align-items:center;width:100%;margin:8px 0 2px;padding:0;background:transparent;}' +
+                '.aimode-composer-audio-row{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;margin:0 4px;}' +
+                '.aimode-audio-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:36px;min-height:34px;padding:6px 10px;border:1px solid rgba(128,128,128,.35);border-radius:18px;background:transparent;color:inherit;font-family:inherit;font-size:13px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer;opacity:.9;box-shadow:none;-webkit-tap-highlight-color:transparent;}' +
+                '.aimode-audio-button:active{opacity:.65;}' +
+                '.aimode-audio-button[aria-pressed=true]{border-color:#1a73e8;color:#1a73e8;}' +
+                '.aimode-audio-icon{font-size:15px;line-height:1;}';
+              (document.head || document.documentElement).appendChild(style);
+
+              function visible(node) {
+                if (!node || !node.getBoundingClientRect) return false;
+                var rect = node.getBoundingClientRect();
+                var css = getComputedStyle(node);
+                return rect.width > 0 && rect.height > 0 &&
+                  css.display !== 'none' && css.visibility !== 'hidden';
+              }
+
+              function clean(node) {
+                if (!node) return '';
+                var clone = node.cloneNode(true);
+                clone.querySelectorAll(
+                  'button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,' +
+                  '[role=button],[role=link],[role=navigation],[aria-hidden=true],[contenteditable=true],' +
+                  '.aimode-audio-row,.aimode-composer-audio-row'
+                ).forEach(function (item) { item.remove(); });
+                return (clone.innerText || clone.textContent || '')
+                  .replace(new RegExp(String.fromCharCode(160), 'g'), ' ')
+                  .replace(/[ \\t]+/g, ' ')
+                  .replace(/\\s{3,}/g, ' ')
+                  .trim();
+              }
+
+              function findAnswers() {
+                var root = document.querySelector('main,[role=main]') || document.body;
+                var nodes = Array.from(root.querySelectorAll(answerSelector))
+                  .filter(visible)
+                  .map(function (node) { return {node: node, text: clean(node)}; })
+                  .filter(function (item) { return item.text.length >= 70 && item.text.length <= 20000; });
+
+                if (!nodes.length) {
+                  var paragraphs = Array.from(root.querySelectorAll('p,li,[role=paragraph]'))
+                    .filter(visible)
+                    .filter(function (node) {
+                      return !node.closest('form,textarea,input,[contenteditable=true],[role=textbox],nav,header,footer');
+                    });
+                  paragraphs.forEach(function (paragraph) {
+                    var parent = paragraph.parentElement;
+                    var best = paragraph;
+                    for (var depth = 0; parent && parent !== root && depth < 6; depth++, parent = parent.parentElement) {
+                      if (parent.querySelector('textarea,input,[contenteditable=true],[role=textbox]')) break;
+                      var value = clean(parent);
+                      if (value.length >= 70 && value.length <= 16000) best = parent;
+                      if (value.length > 16000) break;
+                    }
+                    var text = clean(best);
+                    if (text.length >= 70) nodes.push({node: best, text: text});
+                  });
+                }
+
+                nodes.sort(function (a, b) {
+                  if (a.node === b.node) return 0;
+                  return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+                });
+
+                var unique = [];
+                nodes.forEach(function (item) {
+                  var index = unique.findIndex(function (other) {
+                    return other.node === item.node || other.node.contains(item.node) || item.node.contains(other.node);
+                  });
+                  if (index < 0) {
+                    unique.push(item);
+                  } else {
+                    var existing = unique[index];
+                    if (item.node.contains(existing.node) && item.text.length >= existing.text.length * 0.72) {
+                      unique[index] = item;
+                    } else if (existing.node.contains(item.node) && existing.text.length < item.text.length) {
+                      unique[index] = item;
+                    }
+                  }
+                });
+                return unique;
+              }
+
+              function latestAnswerText() {
+                var answers = findAnswers();
+                if (answers.length) return answers[answers.length - 1].text;
+
+                var root = document.querySelector('main,[role=main]') || document.body;
+                var paragraphs = Array.from(root.querySelectorAll('p,li,[role=paragraph]'))
+                  .filter(visible)
+                  .filter(function (node) {
+                    return !node.closest('form,textarea,input,[contenteditable=true],[role=textbox],nav,header,footer');
+                  })
+                  .map(clean)
+                  .filter(function (text) { return text.length >= 35; });
+
+                if (paragraphs.length) return paragraphs.slice(-40).join(' ');
+                var fallback = clean(root);
+                return fallback.length >= 80 ? fallback.slice(-14000) : '';
+              }
+
+              function setActive(button, active) {
+                if (!button) return;
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                button.innerHTML = active
+                  ? '<span class="aimode-audio-icon">■</span><span>Parar</span>'
+                  : '<span class="aimode-audio-icon">🔊</span><span>Ouvir</span>';
+              }
+
+              function makeButton(kind, answerNode) {
+                var row = document.createElement('div');
+                row.className = kind === 'composer' ? 'aimode-composer-audio-row' : 'aimode-audio-row';
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'aimode-audio-button';
+                button.setAttribute('aria-label', kind === 'composer'
+                  ? 'Ouvir a última resposta do Modo IA'
+                  : 'Ouvir esta resposta do Modo IA');
+                setActive(button, false);
+                button.addEventListener('click', function () {
+                  if (window.__aimodeCurrentAudioButton === button &&
+                      button.getAttribute('aria-pressed') === 'true') {
+                    if (window.AIModeSpeech) window.AIModeSpeech.stop();
+                    setActive(button, false);
+                    window.__aimodeCurrentAudioButton = null;
+                    return;
+                  }
+                  var text = answerNode ? clean(answerNode) : latestAnswerText();
+                  if (!text || !window.AIModeSpeech) return;
+                  if (window.__aimodeCurrentAudioButton) {
+                    setActive(window.__aimodeCurrentAudioButton, false);
+                  }
+                  window.__aimodeCurrentAudioButton = button;
+                  setActive(button, true);
+                  window.AIModeSpeech.speak(text);
+                });
+                row.appendChild(button);
+                return row;
+              }
+
+              function addAnswerControls() {
+                findAnswers().forEach(function (answer) {
+                  var node = answer.node;
+                  if (!node || node.querySelector(':scope > .aimode-audio-row')) return;
+                  node.appendChild(makeButton('answer', node));
+                });
+              }
+
+              function sendButtonIn(node) {
+                var buttons = Array.from(node.querySelectorAll('button,[role=button],input[type=submit]'));
+                return buttons.find(function (button) {
+                  var label = [
+                    button.getAttribute('aria-label') || '',
+                    button.getAttribute('title') || '',
+                    button.getAttribute('data-testid') || '',
+                    button.innerText || button.textContent || '',
+                    button.getAttribute('type') === 'submit' ? 'submit' : ''
+                  ].join(' ').toLowerCase();
+                  return /send|submit|enviar|mandar|perguntar|enviar mensagem|submit query/.test(label);
+                }) || null;
+              }
+
+              function findComposer() {
+                var root = document.querySelector('main,[role=main]') || document.body;
+                var editors = Array.from(root.querySelectorAll(
+                  'textarea,[contenteditable=true],[role=textbox],input[type=text],input:not([type])'
+                )).filter(visible).filter(function (editor) {
+                  if (editor.closest('nav,[role=navigation]')) return false;
+                  var label = ((editor.getAttribute('placeholder') || '') + ' ' +
+                    (editor.getAttribute('aria-label') || '')).toLowerCase();
+                  if (/search|pesquisar|buscar/.test(label) && !/ask|pergunt|mensagem/.test(label)) return false;
+                  return true;
+                });
+
+                editors.sort(function (a, b) {
+                  function score(editor) {
+                    var rect = editor.getBoundingClientRect();
+                    var label = ((editor.getAttribute('placeholder') || '') + ' ' +
+                      (editor.getAttribute('aria-label') || '')).toLowerCase();
+                    return (rect.bottom / Math.max(1, window.innerHeight)) * 100 +
+                      (/ask|pergunt|mensagem|follow.?up|prompt|digite/.test(label) ? 100 : 0);
+                  }
+                  return score(b) - score(a);
+                });
+
+                for (var i = 0; i < editors.length; i++) {
+                  var editor = editors[i];
+                  var ancestor = editor;
+                  var form = editor.closest('form');
+                  for (var depth = 0; ancestor && depth < 8; depth++, ancestor = ancestor.parentElement) {
+                    var send = sendButtonIn(ancestor);
+                    if (send && send.parentElement) {
+                      return {host: send.parentElement, before: send, form: form};
+                    }
+                    if (!form && (ancestor.tagName === 'FORM' || ancestor.getAttribute('role') === 'form')) {
+                      form = ancestor;
+                    }
+                  }
+                  if (form) return {host: form, before: null, form: form, editor: editor};
+                  var host = editor.parentElement && editor.parentElement.parentElement
+                    ? editor.parentElement.parentElement : editor.parentElement;
+                  if (host) return {host: host, before: null, form: null, editor: editor};
+                }
+                return null;
+              }
+
+              function addComposerControl() {
+                var composer = findComposer();
+                if (!composer || !composer.host) return;
+                var scope = composer.form || composer.host;
+                if (scope.querySelector('.aimode-composer-audio-row')) return;
+                var row = makeButton('composer', null);
+                if (composer.before && composer.before.parentElement === composer.host) {
+                  composer.host.insertBefore(row, composer.before);
+                } else if (composer.form && composer.editor) {
+                  var anchor = composer.editor.closest('[role=group]') ||
+                    composer.editor.parentElement;
+                  if (anchor && anchor.parentElement === composer.form) {
+                    composer.form.insertBefore(row, anchor.nextSibling);
+                  } else {
+                    composer.form.appendChild(row);
+                  }
+                } else {
+                  composer.host.appendChild(row);
+                }
+              }
+
+              function ensureControls() {
+                addComposerControl();
+                addAnswerControls();
+              }
+
+              window.__aimodeEnsureAudioControls = ensureControls;
+              window.__aimodeSetSpeechState = function (active) {
+                document.querySelectorAll('.aimode-audio-button').forEach(function (button) {
+                  setActive(button, !!active && button === window.__aimodeCurrentAudioButton);
+                });
+                if (!active) window.__aimodeCurrentAudioButton = null;
+              };
+
+              ensureControls();
+              var scheduled = false;
+              var observer = new MutationObserver(function () {
+                if (scheduled) return;
+                scheduled = true;
+                requestAnimationFrame(function () {
+                  scheduled = false;
+                  ensureControls();
+                });
+              });
+              observer.observe(document.documentElement, {childList: true, subtree: true});
+              window.__aimodeAudioObserver = observer;
+            })();
+            """;
 
 
     private WebView web;
