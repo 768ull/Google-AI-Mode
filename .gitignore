@@ -11,3 +11,7 @@
 *.apk
 *.aab
 .DS_Store
+
+*.p12
+ANDROID_KEYSTORE_BASE64.txt
+ANDROID_SIGNING_PASSWORD.txt
