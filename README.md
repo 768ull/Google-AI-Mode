@@ -21,8 +21,8 @@ Nunca coloque o arquivo PKCS#12 ou os valores dos Secrets no repositório públi
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 7
-- versionName: `1.0.6`
+- versionCode: 8
+- versionName: `1.0.7`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
@@ -41,3 +41,8 @@ O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso
 ### Correção do botão de áudio (1.0.6)
 
 O controle **🔊 Ouvir resposta** agora é um botão nativo flutuante do Android, sempre visível sobre a página do Modo IA após o carregamento. Ele não depende das classes CSS ou dos atributos internos do Google, que podem mudar sem aviso. Ao tocar, o app tenta localizar o último texto de resposta na área principal e envia esse texto ao PocketTTS local. O mesmo botão muda para **Parar áudio** durante a reprodução.
+
+
+### Assinatura estável para futuras atualizações (1.0.7)
+
+O workflow não gera mais chaves temporárias. Todo APK de release exige o keystore permanente `aimode-upload` e confere o fingerprint SHA-256 esperado antes de assinar. Sem os dois Secrets obrigatórios, a publicação para em vez de produzir um APK que não aceite atualização.

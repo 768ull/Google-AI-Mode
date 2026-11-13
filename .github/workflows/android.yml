@@ -37,15 +37,10 @@ jobs:
           gradle-version: '9.6.0'
 
       - name: Require the permanent release signing key
-        if: github.event_name != 'pull_request'
-        env:
-          HAS_RELEASE_KEY: ${{ env.HAS_RELEASE_KEY }}
+        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
         run: |
-          set -euo pipefail
-          if [ "$HAS_RELEASE_KEY" != "true" ]; then
-            echo "::error title=Permanent signing key missing::Refusing to create a one-time signed APK. Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions."
-            exit 1
-          fi
+          echo "::error title=Permanent signing key missing::Refusing to create a one-time signed APK. Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions."
+          exit 1
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
