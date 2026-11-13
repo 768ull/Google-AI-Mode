@@ -39,7 +39,7 @@ jobs:
       - name: Require the permanent release signing key
         if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
         run: |
-          echo "::error title=Permanent signing key missing::Refusing to create a one-time signed APK. Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions."
+          echo "::error title=Permanent signing key missing::Add BOTH repository Actions secrets: ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD. Setup: https://github.com/768ull/Google-AI-Mode/settings/secrets/actions"
           exit 1
 
       - name: Set up Android SDK
@@ -55,7 +55,6 @@ jobs:
       - name: Build debug and release APKs
         run: gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
 
-      # Preferred path: use the owner's permanent upload key stored in Actions Secrets.
       - name: Decode permanent release key
         if: env.HAS_RELEASE_KEY == 'true'
         env:
@@ -71,9 +70,9 @@ jobs:
           echo "ANDROID_KEY_ALIAS=aimode-upload" >> "$GITHUB_ENV"
           echo "SIGNING_KEY_PERSISTENT=true" >> "$GITHUB_ENV"
           ACTUAL_FINGERPRINT="$(keytool -list -v -alias aimode-upload -keystore "$RUNNER_TEMP/aimode-upload.p12" -storetype PKCS12 -storepass "$ANDROID_SIGNING_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':')"
-          EXPECTED_FINGERPRINT="F33142C07D868605173800EE3C28EC3DF45F333FD5EAD4FD8ECCEE84526B471A"
+          EXPECTED_FINGERPRINT="C410FDCA235C0DD4501B097339F002CB6E6CC882FC51C35FC436CD888E671580"
           if [ "${ACTUAL_FINGERPRINT^^}" != "$EXPECTED_FINGERPRINT" ]; then
-            echo "::error title=Unexpected signing certificate::The supplied keystore is not the permanent AI Mode upload key. Do not publish this APK."
+            echo "::error title=Unexpected signing certificate::The supplied keystore does not match the permanent AI Mode upload key in the setup package."
             exit 1
           fi
 
