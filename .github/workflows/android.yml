@@ -1,5 +1,5 @@
 name: Android APK
-# 1.6.0: lock vertical scrolling on the AI Mode landing screen only.
+# 1.6.0: lock vertical scrolling on landing screen; release key fingerprint rotated.
 
 on:
   push:
@@ -87,7 +87,7 @@ jobs:
           echo "ANDROID_KEY_ALIAS=aimode-upload" >> "$GITHUB_ENV"
           echo "SIGNING_KEY_PERSISTENT=true" >> "$GITHUB_ENV"
           ACTUAL_FINGERPRINT="$(keytool -list -v -alias aimode-upload -keystore "$RUNNER_TEMP/aimode-upload.p12" -storetype PKCS12 -storepass "$ANDROID_SIGNING_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':')"
-          EXPECTED_FINGERPRINT="C410FDCA235C0DD4501B097339F002CB6E6CC882FC51C35FC436CD888E671580"
+          EXPECTED_FINGERPRINT="0EE2BA96CFB6CD0964C3C2AAA75877D7A5C8F8B28C7499E524C69490931F8C24"
           if [ "${ACTUAL_FINGERPRINT^^}" != "$EXPECTED_FINGERPRINT" ]; then
             echo "::error title=Unexpected signing certificate::The provided keystore does not match the AI Mode permanent upload key."
             exit 1
