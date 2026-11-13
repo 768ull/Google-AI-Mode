@@ -18,7 +18,7 @@ APKSIGNER="$SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner"
 
 # The app's minSdk is 26 (Android 8.0+). V2/V3 are the installable APK
 # signatures used on supported Android versions. V4 is emitted as a sidecar.
-# V1 is intentionally disabled: the APK does not support Android < 26.
+# V1 is enabled as requested, alongside V2/V3 and the V4 sidecar.
 "$APKSIGNER" sign \
   --ks "$ANDROID_KEYSTORE_PATH" \
   --ks-type PKCS12 \
@@ -26,7 +26,7 @@ APKSIGNER="$SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner"
   --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
   --key-pass env:ANDROID_KEY_PASSWORD \
   --min-sdk-version 26 \
-  --v1-signing-enabled false \
+  --v1-signing-enabled true \
   --v2-signing-enabled true \
   --v3-signing-enabled true \
   --v4-signing-enabled true \
@@ -41,7 +41,7 @@ VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs \
   "$OUTPUT_APK")"
 printf '%s\n' "$VERIFY_OUTPUT"
 
-for SCHEME in v2 v3 v4; do
+for SCHEME in v1 v2 v3 v4; do
   if ! grep -F "Verified using $SCHEME scheme" <<<"$VERIFY_OUTPUT" | grep -Fq "true"; then
     echo "A assinatura $SCHEME não foi validada; o APK não será publicado." >&2
     exit 1
