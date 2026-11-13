@@ -1,5 +1,5 @@
 name: Android APK
-# 1.4.0: read-aloud is limited to explicit assistant response nodes.
+# 1.5.0: return to the original WebView app without read-aloud or local speech.
 
 on:
   push:
@@ -111,7 +111,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-1.4.0-debug-side-by-side-test-only
+          name: ai-mode-1.5.0-debug-side-by-side-test-only
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
@@ -131,7 +131,7 @@ jobs:
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-1.4.0-unsigned-private-signing-source-NOT-INSTALLABLE
+          name: ai-mode-1.5.0-unsigned-private-signing-source-NOT-INSTALLABLE
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/app-release-unsigned.apk
