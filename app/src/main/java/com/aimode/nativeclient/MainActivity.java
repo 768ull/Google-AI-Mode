@@ -133,11 +133,11 @@ public final class MainActivity extends Activity {
                             | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
 
-            // Do not apply the top display-cutout safe inset as root padding:
-            // it was creating the black band above the app on punch-hole devices.
-            // Keep side cutout safety and let the keyboard move the content only
-            // while the IME is actually visible.
-            v.setPadding(safeSides.left, 0, safeSides.right, ime.bottom);
+            // The window is now allowed to draw behind the camera cutout.
+            // Keep the page content below the cutout so its header does not sit
+            // underneath the front camera; the root background fills this area
+            // with the app surface color instead of leaving a black system band.
+            v.setPadding(safeSides.left, safeSides.top, safeSides.right, ime.bottom);
             return insets;
         });
 
