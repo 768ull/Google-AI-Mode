@@ -49,12 +49,27 @@ public final class MainActivity extends Activity {
      */
     private static final String PAGE_CLEANUP =
             "(function(){var id='aimode-native-cleanup';" +
-            "var css='div.GG4mbd[role=navigation]{display:none!important;}';" +
+            "var css='div.GG4mbd[role=navigation]{display:none!important;} " +
+            "html.aimode-static-home,html.aimode-static-home body{" +
+            "overflow-y:hidden!important;overscroll-behavior-y:none!important;" +
+            "touch-action:pan-x!important;}';" +
             "var style=document.getElementById(id);" +
             "if(!style){style=document.createElement('style');style.id=id;" +
             "(document.head||document.documentElement).appendChild(style);}" +
             "if(style.textContent!==css)style.textContent=css;" +
-            "})();";
+            "var root=document.documentElement,startY=0;" +
+            "function sync(){var t=(document.body&&document.body.innerText||'').toLowerCase();" +
+            "var greeting=t.includes('no que você está pensando?')||" +
+            "t.includes('what is on your mind?')||t.includes('what are you thinking?');" +
+            "var active=!!document.querySelector('[data-message-author-role],[data-message-id],[role=log] [role=article]');" +
+            "var home=greeting&&!active;root.classList.toggle('aimode-static-home',home);" +
+            "if(home){window.scrollTo(0,0);document.body.scrollTop=0;}}" +
+            "if(!window.__aimodeStaticHome){window.__aimodeStaticHome=true;" +
+            "document.addEventListener('touchstart',function(e){if(root.classList.contains('aimode-static-home')&&e.touches.length)startY=e.touches[0].clientY;},{passive:true});" +
+            "document.addEventListener('touchmove',function(e){if(!root.classList.contains('aimode-static-home')||!e.touches.length)return;" +
+            "if(Math.abs(e.touches[0].clientY-startY)>6){e.preventDefault();window.scrollTo(0,0);document.body.scrollTop=0;}},{passive:false});" +
+            "new MutationObserver(sync).observe(document.documentElement,{subtree:true,childList:true,characterData:true});}" +
+            "sync();})();";
 
     private WebView web;
     private ProgressBar progress;
