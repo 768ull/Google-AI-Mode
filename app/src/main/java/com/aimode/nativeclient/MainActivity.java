@@ -54,7 +54,7 @@ public final class MainActivity extends Activity {
             "var conversation='article,[role=\"article\"],[data-message-id],[data-message-author-role]," +
             "[data-testid*=\"message\"],[data-testid*=\"conversation\"],[data-conversation-id]," +
             "[data-turn-id],[data-conversation-turn],[class*=\"message-content\"]," +
-            "[class*=\"conversation-turn\"],[class*=\"model-response\"],[class*=\"user-query\"]';" +
+            "[class*=\"conversation-turn\"],[class*=\"model-response\"],[class*=\"user-query\"],.qJYHHd,[data-thread-id]';" +
             "function keep(target){if(!target||!target.closest)return false;" +
             "return !!(target.closest(editor)||target.closest(conversation));}" +
             "function block(e){if(keep(e.target))return;" +
