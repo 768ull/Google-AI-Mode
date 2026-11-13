@@ -20,6 +20,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Require permanent signing key for manual release runs
+        if: github.event_name == 'workflow_dispatch' && env.HAS_RELEASE_KEY != 'true'
+        run: |
+          echo "::error title=Release signing key missing::Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions, then run this workflow again."
+          exit 1
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -57,7 +62,7 @@ jobs:
         run: |
           bash scripts/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release.apk
       - name: Warn when permanent key has not been configured
-        if: env.HAS_RELEASE_KEY != 'true'
+        if: env.HAS_RELEASE_KEY != 'true' && github.event_name != 'workflow_dispatch'
         run: |
           echo "::warning title=Permanent signing key not configured::Only a debug APK will be uploaded. Do not use it to update an installed release."
       - name: Upload debug test APK only
