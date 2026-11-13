@@ -30,7 +30,10 @@ jobs:
         with:
           gradle-version: '9.6.0'
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # Do not request the removed legacy "tools" package.
+          packages: 'platform-tools'
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
