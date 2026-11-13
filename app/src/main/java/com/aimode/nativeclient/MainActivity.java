@@ -162,6 +162,10 @@ public final class MainActivity extends Activity {
                 // assistant markup, fail closed instead of reading unrelated UI.
                 var nodes = Array.from(root.querySelectorAll(answerSelector))
                   .filter(visible)
+                  // Ignore assistant wrappers that contain a more specific
+                  // assistant response node. This avoids speaking page chrome
+                  // and controls attached to an outer conversation container.
+                  .filter(function (node) { return !node.querySelector(answerSelector); })
                   .map(function (node) { return {node: node, text: clean(node)}; })
                   .filter(function (item) {
                     return item.text.length >= 20 && item.text.length <= 12000;
@@ -172,27 +176,7 @@ public final class MainActivity extends Activity {
                   return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
                 });
 
-                // Keep the most specific matching assistant response nodes.
-                // Parent wrappers may also contain page controls or other turns.
-                var unique = [];
-                nodes.forEach(function (item) {
-                  var nested = unique.findIndex(function (other) {
-                    return item.node.contains(other.node);
-                  });
-                  if (nested >= 0) {
-                    unique[nested] = item;
-                    return;
-                  }
-                  var parent = unique.findIndex(function (other) {
-                    return other.node.contains(item.node);
-                  });
-                  if (parent >= 0) {
-                    if (item.text.length >= unique[parent].text.length * 0.72) unique[parent] = item;
-                    return;
-                  }
-                  unique.push(item);
-                });
-                return unique.filter(function (item) { return item.text.length >= 20; });
+                return nodes;
               }
 
               function latestAnswerText() {
