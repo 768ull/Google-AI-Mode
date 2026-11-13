@@ -24,11 +24,14 @@ import com.google.mediapipe.tasks.core.Delegate;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,7 +48,7 @@ public final class OnDeviceTtsController {
     private static final String MODEL_NAME = "pocket_tts_pt_int8.litertlm";
     private static final String MODEL_CACHE_PREFS = "aimode_tts_cache";
     private static final String MODEL_CACHE_VERSION_KEY = "pocket_tts_runtime_version";
-    private static final int MODEL_CACHE_VERSION = 2;
+    private static final int MODEL_CACHE_VERSION = 3;
     private static final String MODEL_URL =
             "https://huggingface.co/litert-community/pocket-tts/resolve/main/"
                     + MODEL_NAME + "?download=true";
@@ -150,7 +153,22 @@ public final class OnDeviceTtsController {
     }
 
     private boolean isValidModel(File file) {
-        return file.isFile() && file.length() >= MIN_MODEL_BYTES;
+        if (!file.isFile() || file.length() < MIN_MODEL_BYTES) return false;
+        // LiteRT-LM bundles start with this fixed eight-byte signature. This
+        // rejects HTML/error pages and truncated responses before native parsing.
+        byte[] expectedMagic = "LITERTLM".getBytes(StandardCharsets.US_ASCII);
+        byte[] actualMagic = new byte[expectedMagic.length];
+        try (InputStream input = new FileInputStream(file)) {
+            int offset = 0;
+            while (offset < actualMagic.length) {
+                int count = input.read(actualMagic, offset, actualMagic.length - offset);
+                if (count < 0) return false;
+                offset += count;
+            }
+            return java.util.Arrays.equals(expectedMagic, actualMagic);
+        } catch (IOException ignored) {
+            return false;
+        }
     }
 
     private void showDownloadPrompt(String text, int requestId) {
@@ -269,9 +287,13 @@ public final class OnDeviceTtsController {
             if (downloadCancelled.get() || requestId != requestGeneration.get()) {
                 throw new InterruptedIOException("Download cancelado.");
             }
-            if (partial.length() < MIN_MODEL_BYTES) {
-                throw new IllegalStateException("O arquivo baixado está incompleto ("
-                        + partial.length() + " bytes).");
+            if (total > 0 && partial.length() != total) {
+                throw new IllegalStateException("Download incompleto: "
+                        + partial.length() + " de " + total + " bytes.");
+            }
+            if (!isValidModel(partial)) {
+                throw new IllegalStateException("O modelo baixado não é um pacote LiteRT-LM válido "
+                        + "ou está incompleto (" + partial.length() + " bytes).");
             }
             if (destination.exists() && !destination.delete()) {
                 throw new IllegalStateException("Não foi possível substituir o modelo anterior.");
