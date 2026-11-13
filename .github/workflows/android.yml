@@ -106,28 +106,17 @@ jobs:
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
-      - name: Package apksigner for private signing
+      - name: Do not publish an unsigned release APK
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         run: |
-          set -euo pipefail
-          TOOL_SOURCE="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION"
-          test -x "$TOOL_SOURCE/apksigner"
-          mkdir -p "$RUNNER_TEMP/apksigner-tools"
-          cp "$TOOL_SOURCE/apksigner" "$RUNNER_TEMP/apksigner-tools/"
-          cp -R "$TOOL_SOURCE/lib" "$RUNNER_TEMP/apksigner-tools/"
-          chmod +x "$RUNNER_TEMP/apksigner-tools/apksigner"
-          (cd "$RUNNER_TEMP/apksigner-tools" && zip -qr "$GITHUB_WORKSPACE/app/build/outputs/apk/release/apksigner-tools.zip" apksigner lib)
-
-      - name: Upload unsigned release APK for private signing
-        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-mode-release-unsigned-needs-private-signing
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            app/build/outputs/apk/release/apksigner-tools.zip
-          retention-days: 3
+          echo "::warning title=Release APK not published::The build completed, but no installable release was published because the permanent signing Secrets are missing."
+          {
+            echo "### Release APK not published"
+            echo
+            echo "The APK build completed, but the permanent signing Secrets are not configured. No unsigned APK was uploaded, to prevent an un-installable package from being mistaken for a release."
+            echo
+            echo "Add `ANDROID_KEYSTORE_BASE64` and `ANDROID_SIGNING_PASSWORD` in repository Settings > Secrets and variables > Actions."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload permanently signed release APK and V4 signature
         if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
