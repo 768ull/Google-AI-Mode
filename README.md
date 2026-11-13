@@ -20,12 +20,16 @@ O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, 
 ## Versão 1.3.0
 
 - applicationId principal: `com.aimode.nativeclient`
-- versionCode: 13
-- versionName: `1.3.0`
+- versionCode: 14
+- versionName: `1.4.0`
 - minSdk: 26 (Android 8.0)
 - ABI: ARM64
 
 Este projeto independente não é afiliado nem endossado pelo Google.
+
+### Leitura restrita à resposta da IA (1.4.0)
+
+O botão **Ouvir** extrai apenas conteúdo dentro de elementos explicitamente marcados como resposta do assistente. Foram removidos os fallbacks que liam parágrafos genéricos, o conteúdo da página principal ou o corpo inteiro do documento. Quando o Google muda a marcação e nenhuma resposta identificável é encontrada, o botão não inicia a leitura. Controles, botões, menus, ações, fontes e citações em componentes de interface são excluídos da extração.
 
 ## Áudio das respostas
 
