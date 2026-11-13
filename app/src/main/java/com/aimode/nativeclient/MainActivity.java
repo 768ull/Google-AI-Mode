@@ -12,7 +12,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -88,263 +87,11 @@ public final class MainActivity extends Activity {
             "document.addEventListener('selectstart',block,true);" +
             "})();";
 
-    /*
-     * Adds one read-aloud control to assistant response blocks only. The page
-     * remains the source of the AI response; speech is synthesized locally.
-     */
-    /*
-     * Inserts a compact read-aloud action into the matching assistant answer
-     * in the WebView. A MutationObserver adds the action to new answers as the
-     * conversation grows; no separate native overlay is placed over the page.
-     */
-    private static final String SPEAKER_BUTTONS = """
-            (function () {
-              if (window.__aimodeAudioControlsInstalled) {
-                if (window.__aimodeEnsureAudioControls) window.__aimodeEnsureAudioControls();
-                return;
-              }
-              window.__aimodeAudioControlsInstalled = true;
-
-              // Only explicit assistant-message containers are eligible.
-              // Generic page selectors and data-testid wildcards can match controls,
-              // navigation, related questions, and other non-conversation UI.
-              var answerSelector =
-                '[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],' +
-                'model-response,.model-response,.model-response-text';
-
-              var style = document.createElement('style');
-              style.id = 'aimode-inline-audio-style';
-              style.textContent =
-                '.aimode-audio-row{display:flex;align-items:center;width:100%;margin:8px 0 2px;padding:0;background:transparent;}' +
-                '.aimode-composer-audio-row{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;margin:0 4px;}' +
-                '.aimode-audio-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:36px;min-height:34px;padding:6px 10px;border:1px solid rgba(128,128,128,.35);border-radius:18px;background:transparent;color:inherit;font-family:inherit;font-size:13px;font-weight:500;line-height:1.2;white-space:nowrap;cursor:pointer;opacity:.9;box-shadow:none;-webkit-tap-highlight-color:transparent;}' +
-                '.aimode-audio-button:active{opacity:.65;}' +
-                '.aimode-audio-button[aria-pressed=true]{border-color:#1a73e8;color:#1a73e8;}' +
-                '.aimode-audio-icon{font-size:15px;line-height:1;}';
-              (document.head || document.documentElement).appendChild(style);
-
-              function visible(node) {
-                if (!node || !node.getBoundingClientRect) return false;
-                var rect = node.getBoundingClientRect();
-                var css = getComputedStyle(node);
-                return rect.width > 0 && rect.height > 0 &&
-                  css.display !== 'none' && css.visibility !== 'hidden';
-              }
-
-              function clean(node) {
-                if (!node) return '';
-                var clone = node.cloneNode(true);
-                // Keep only answer prose. Google adds action bars, feedback,
-                // source cards, citation controls and related UI beside answers.
-                // Those are not spoken, even when they sit inside the assistant root.
-                clone.querySelectorAll(
-                  'button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,' +
-                  '[role=button],[role=link],[role=menuitem],[role=toolbar],[role=navigation],' +
-                  '[aria-hidden=true],[aria-label],[contenteditable=true],' +
-                  '[data-testid*=button],[data-testid*=action],[data-testid*=source],' +
-                  '[data-testid*=citation],[data-testid*=feedback],[data-testid*=menu],' +
-                  '[class*=toolbar],[class*=action],[class*=citation],[class*=source],[class*=menu],' +
-                  '.aimode-audio-row,.aimode-composer-audio-row'
-                ).forEach(function (item) { item.remove(); });
-
-                return (clone.innerText || clone.textContent || '')
-                  .replace(new RegExp(String.fromCharCode(160), 'g'), ' ')
-                  .replace(/[ \\t]+/g, ' ')
-                  .replace(/\\s{3,}/g, ' ')
-                  .trim();
-              }
-
-              function findAnswers() {
-                var root = document.querySelector('main,[role=main]');
-                if (!root) return [];
-
-                // No document/body-wide paragraph fallback: if Google changes its
-                // assistant markup, fail closed instead of reading unrelated UI.
-                var nodes = Array.from(root.querySelectorAll(answerSelector))
-                  .filter(visible)
-                  // Ignore assistant wrappers that contain a more specific
-                  // assistant response node. This avoids speaking page chrome
-                  // and controls attached to an outer conversation container.
-                  .filter(function (node) { return !node.querySelector(answerSelector); })
-                  .map(function (node) { return {node: node, text: clean(node)}; })
-                  .filter(function (item) {
-                    return item.text.length >= 20 && item.text.length <= 12000;
-                  });
-
-                nodes.sort(function (a, b) {
-                  if (a.node === b.node) return 0;
-                  return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-                });
-
-                return nodes;
-              }
-
-              function latestAnswerText() {
-                var answers = findAnswers();
-                return answers.length ? answers[answers.length - 1].text : '';
-              }
-
-              function setActive(button, active) {
-                if (!button) return;
-                button.setAttribute('aria-pressed', active ? 'true' : 'false');
-                button.innerHTML = active
-                  ? '<span class="aimode-audio-icon">■</span><span>Parar</span>'
-                  : '<span class="aimode-audio-icon">🔊</span><span>Ouvir</span>';
-              }
-
-              function makeButton(kind, answerNode) {
-                var row = document.createElement('div');
-                row.className = kind === 'composer' ? 'aimode-composer-audio-row' : 'aimode-audio-row';
-                var button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'aimode-audio-button';
-                button.setAttribute('aria-label', kind === 'composer'
-                  ? 'Ouvir a última resposta do Modo IA'
-                  : 'Ouvir esta resposta do Modo IA');
-                setActive(button, false);
-                button.addEventListener('click', function () {
-                  if (window.__aimodeCurrentAudioButton === button &&
-                      button.getAttribute('aria-pressed') === 'true') {
-                    if (window.AIModeSpeech) window.AIModeSpeech.stop();
-                    setActive(button, false);
-                    window.__aimodeCurrentAudioButton = null;
-                    return;
-                  }
-                  var text = answerNode ? clean(answerNode) : latestAnswerText();
-                  if (!text || !window.AIModeSpeech) return;
-                  if (window.__aimodeCurrentAudioButton) {
-                    setActive(window.__aimodeCurrentAudioButton, false);
-                  }
-                  window.__aimodeCurrentAudioButton = button;
-                  setActive(button, true);
-                  window.AIModeSpeech.speak(text);
-                });
-                row.appendChild(button);
-                return row;
-              }
-
-              function addAnswerControls() {
-                findAnswers().forEach(function (answer) {
-                  var node = answer.node;
-                  if (!node || node.querySelector(':scope > .aimode-audio-row')) return;
-                  node.appendChild(makeButton('answer', node));
-                });
-              }
-
-              function sendButtonIn(node) {
-                var buttons = Array.from(node.querySelectorAll('button,[role=button],input[type=submit]'));
-                return buttons.find(function (button) {
-                  var label = [
-                    button.getAttribute('aria-label') || '',
-                    button.getAttribute('title') || '',
-                    button.getAttribute('data-testid') || '',
-                    button.innerText || button.textContent || '',
-                    button.getAttribute('type') === 'submit' ? 'submit' : ''
-                  ].join(' ').toLowerCase();
-                  return /send|submit|enviar|mandar|perguntar|enviar mensagem|submit query/.test(label);
-                }) || null;
-              }
-
-              function findComposer() {
-                var root = document.querySelector('main,[role=main]') || document.body;
-                var editors = Array.from(root.querySelectorAll(
-                  'textarea,[contenteditable=true],[role=textbox],input[type=text],input:not([type])'
-                )).filter(visible).filter(function (editor) {
-                  if (editor.closest('nav,[role=navigation]')) return false;
-                  var label = ((editor.getAttribute('placeholder') || '') + ' ' +
-                    (editor.getAttribute('aria-label') || '')).toLowerCase();
-                  if (/search|pesquisar|buscar/.test(label) && !/ask|pergunt|mensagem/.test(label)) return false;
-                  return true;
-                });
-
-                editors.sort(function (a, b) {
-                  function score(editor) {
-                    var rect = editor.getBoundingClientRect();
-                    var label = ((editor.getAttribute('placeholder') || '') + ' ' +
-                      (editor.getAttribute('aria-label') || '')).toLowerCase();
-                    return (rect.bottom / Math.max(1, window.innerHeight)) * 100 +
-                      (/ask|pergunt|mensagem|follow.?up|prompt|digite/.test(label) ? 100 : 0);
-                  }
-                  return score(b) - score(a);
-                });
-
-                for (var i = 0; i < editors.length; i++) {
-                  var editor = editors[i];
-                  var ancestor = editor;
-                  var form = editor.closest('form');
-                  for (var depth = 0; ancestor && depth < 8; depth++, ancestor = ancestor.parentElement) {
-                    var send = sendButtonIn(ancestor);
-                    if (send && send.parentElement) {
-                      return {host: send.parentElement, before: send, form: form};
-                    }
-                    if (!form && (ancestor.tagName === 'FORM' || ancestor.getAttribute('role') === 'form')) {
-                      form = ancestor;
-                    }
-                  }
-                  if (form) return {host: form, before: null, form: form, editor: editor};
-                  var host = editor.parentElement && editor.parentElement.parentElement
-                    ? editor.parentElement.parentElement : editor.parentElement;
-                  if (host) return {host: host, before: null, form: null, editor: editor};
-                }
-                return null;
-              }
-
-              function addComposerControl() {
-                var composer = findComposer();
-                if (!composer || !composer.host) return;
-                var scope = composer.form || composer.host;
-                if (scope.querySelector('.aimode-composer-audio-row')) return;
-                var row = makeButton('composer', null);
-                if (composer.before && composer.before.parentElement === composer.host) {
-                  composer.host.insertBefore(row, composer.before);
-                } else if (composer.form && composer.editor) {
-                  var anchor = composer.editor.closest('[role=group]') ||
-                    composer.editor.parentElement;
-                  if (anchor && anchor.parentElement === composer.form) {
-                    composer.form.insertBefore(row, anchor.nextSibling);
-                  } else {
-                    composer.form.appendChild(row);
-                  }
-                } else {
-                  composer.host.appendChild(row);
-                }
-              }
-
-              function ensureControls() {
-                addComposerControl();
-                addAnswerControls();
-              }
-
-              window.__aimodeEnsureAudioControls = ensureControls;
-              window.__aimodeSetSpeechState = function (active) {
-                document.querySelectorAll('.aimode-audio-button').forEach(function (button) {
-                  setActive(button, !!active && button === window.__aimodeCurrentAudioButton);
-                });
-                if (!active) window.__aimodeCurrentAudioButton = null;
-              };
-
-              ensureControls();
-              var scheduled = false;
-              var observer = new MutationObserver(function () {
-                if (scheduled) return;
-                scheduled = true;
-                requestAnimationFrame(function () {
-                  scheduled = false;
-                  ensureControls();
-                });
-              });
-              observer.observe(document.documentElement, {childList: true, subtree: true});
-              window.__aimodeAudioObserver = observer;
-            })();
-            """;
-
-
     private WebView web;
     private ProgressBar progress;
     private LinearLayout error;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest audioRequest;
-    private OnDeviceTtsController speech;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -395,7 +142,6 @@ public final class MainActivity extends Activity {
         });
 
         web = createWebView();
-        speech = new OnDeviceTtsController(this, web);
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);
         error = createErrorPanel();
@@ -429,7 +175,6 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         enterFullscreen();
-        if (speech != null) speech.onResume();
     }
 
     private boolean isNightModeEnabled() {
@@ -467,8 +212,6 @@ public final class MainActivity extends Activity {
             WebSettingsCompat.setSafeBrowsingEnabled(s, true);
         }
 
-        view.addJavascriptInterface(new SpeechBridge(), "AIModeSpeech");
-
         view.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
@@ -486,7 +229,6 @@ public final class MainActivity extends Activity {
                 progress.setVisibility(View.GONE);
                 v.evaluateJavascript(PAGE_CLEANUP, null);
                 v.evaluateJavascript(CONTEXT_GUARD, null);
-                v.evaluateJavascript(SPEAKER_BUTTONS, null);
             }
 
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
@@ -542,30 +284,6 @@ public final class MainActivity extends Activity {
             }
         });
         return view;
-    }
-
-    private final class SpeechBridge {
-        @JavascriptInterface
-        public void speak(String text) {
-            OnDeviceTtsController controller = speech;
-            if (controller != null) controller.speak(text);
-        }
-
-        @JavascriptInterface
-        public void setSpeaking(boolean active) {
-            WebView current = web;
-            if (current != null) {
-                current.post(() -> current.evaluateJavascript(
-                        "if(window.__aimodeSetSpeechState){window.__aimodeSetSpeechState("
-                                + active + ");}", null));
-            }
-        }
-
-        @JavascriptInterface
-        public void stop() {
-            OnDeviceTtsController controller = speech;
-            if (controller != null) controller.stop();
-        }
     }
 
     private boolean isGoogleHome(Uri uri) {
@@ -685,10 +403,6 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        if (speech != null) {
-            speech.release();
-            speech = null;
-        }
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         if (web != null) {
             web.stopLoading();
