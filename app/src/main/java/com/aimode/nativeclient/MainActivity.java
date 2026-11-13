@@ -176,7 +176,7 @@ public final class MainActivity extends Activity {
         for (String item : request.getResources()) {
             if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(item)) audio = true;
         }
-        if (!googleHost(host) || !audio) { request.deny(); return; }
+        if (!googleOrigin(host) || !audio) { request.deny(); return; }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             audioRequest = request;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION);
@@ -184,15 +184,18 @@ public final class MainActivity extends Activity {
     }
 
     private boolean googleHost(String host) {
-        if (host == null) return false;
-        String h = host.toLowerCase();
-        return domain(h, "google.com") || domain(h, "google.com.br")
-                || domain(h, "gstatic.com") || domain(h, "googleapis.com")
-                || domain(h, "googleusercontent.com") || domain(h, "ggpht.com");
+        return googleOrigin(host) || domain(host, "gstatic.com") || domain(host, "googleapis.com")
+                || domain(host, "googleusercontent.com") || domain(host, "ggpht.com");
+    }
+
+    private boolean googleOrigin(String host) {
+        return domain(host, "google.com") || domain(host, "google.com.br");
     }
 
     private boolean domain(String host, String suffix) {
-        return host.equals(suffix) || host.endsWith("." + suffix);
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        return h.equals(suffix) || h.endsWith("." + suffix);
     }
 
     private LinearLayout createErrorPanel() {
