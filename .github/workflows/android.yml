@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_BUILD_TOOLS_VERSION: 36.0.0
-      HAS_RELEASE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_RELEASE_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_SIGNING_PASSWORD != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,49 +32,47 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # Do not request the removed legacy "tools" package.
           packages: 'platform-tools'
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
           sdkmanager "platforms;android-36" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}"
-      - name: Build debug and unsigned release APKs
+      - name: Build debug and release APKs
         run: gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
-      - name: Decode private release key
+      - name: Decode permanent release key
         if: env.HAS_RELEASE_KEY == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aimode-upload.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/aimode-upload.jks" >> "$GITHUB_ENV"
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aimode-upload.p12"
+          test -s "$RUNNER_TEMP/aimode-upload.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/aimode-upload.p12" >> "$GITHUB_ENV"
       - name: Sign release with APK Signature Schemes V1–V4
         if: env.HAS_RELEASE_KEY == 'true'
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_PASSWORD }}
+          ANDROID_KEY_ALIAS: aimode-upload
         run: |
           bash scripts/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release.apk
-      - name: Upload debug APK and unsigned release
+      - name: Warn when permanent key has not been configured
+        if: env.HAS_RELEASE_KEY != 'true'
+        run: |
+          echo "::warning title=Permanent signing key not configured::Only a debug APK will be uploaded. Do not use it to update an installed release."
+      - name: Upload debug test APK only
         if: env.HAS_RELEASE_KEY != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-debug-and-unsigned-release
+          name: ai-mode-debug-test-only
           if-no-files-found: error
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*-unsigned.apk
+          path: app/build/outputs/apk/debug/*.apk
       - name: Upload signed release APK and V4 signature
         if: env.HAS_RELEASE_KEY == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-release-v1-v2-v3-v4
+          name: ai-mode-release-signed-v1-v2-v3-v4
           if-no-files-found: error
           path: |
-            app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/app-release.apk.idsig

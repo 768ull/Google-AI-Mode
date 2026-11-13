@@ -29,8 +29,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 import java.util.ArrayList;
@@ -43,22 +43,46 @@ public final class MainActivity extends Activity {
     private static final String AI_MODE = "https://www.google.com/search?udm=50&aep=43&cud=0";
 
     /*
-     * Suppress Android/WebView text-selection context menus on static chrome/UI.
-     * Keep native editing, the prompt box, and identifiable AI/user conversation
-     * turns selectable so typing and copying conversation text remain available.
+     * Google Search's top category strip is the GG4mbd navigation element
+     * shown in the supplied snapshot (AI Mode, All, Images, News, Videos...).
+     * Only that category strip is removed; the AI Mode header remains.
+     */
+    private static final String PAGE_CLEANUP =
+            "(function(){var id='aimode-native-cleanup';" +
+            "var css='div.GG4mbd[role=navigation]{display:none!important;}';" +
+            "var style=document.getElementById(id);" +
+            "if(!style){style=document.createElement('style');style.id=id;" +
+            "(document.head||document.documentElement).appendChild(style);}" +
+            "if(style.textContent!==css)style.textContent=css;" +
+            "})();";
+
+    /*
+     * Context menus and text selection are allowed only in:
+     * - the prompt editor where the user types;
+     * - actual user-query message nodes;
+     * - actual assistant/model-response message nodes.
+     *
+     * Generic conversation containers, navigation, feature labels, resource
+     * names, buttons, links, and static tool labels are deliberately excluded.
      */
     private static final String CONTEXT_GUARD =
             "(function(){if(window.__aimodeContextGuardInstalled)return;" +
             "window.__aimodeContextGuardInstalled=true;" +
-            "var editor='input,textarea,select,[contenteditable=\"true\"],[role=\"textbox\"],[aria-multiline=\"true\"]';" +
-            "var conversation='article,[role=\"article\"],[data-message-id],[data-message-author-role]," +
-            "[data-testid*=\"message\"],[data-testid*=\"conversation\"],[data-conversation-id]," +
-            "[data-turn-id],[data-conversation-turn],[class*=\"message-content\"]," +
-            "[class*=\"conversation-turn\"],[class*=\"model-response\"],[class*=\"user-query\"],.qJYHHd,[data-thread-id]';" +
-            "function keep(target){if(!target||!target.closest)return false;" +
-            "return !!(target.closest(editor)||target.closest(conversation));}" +
-            "function block(e){if(keep(e.target))return;" +
-            "e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();}" +
+            "var editor='input,textarea,select,[contenteditable=true],[role=textbox],[aria-multiline=true]';" +
+            "var messages='user-query,.user-query,.query-text,[data-turn=user],[data-role=user],[data-message-author-role=user]," +
+            "model-response,.model-response,.model-response-text,.response-content," +
+            "[data-turn=assistant],[data-role=assistant],[data-message-author-role=assistant]';" +
+            "var interactive='button,a,[role=button],[role=link],[role=menuitem]';" +
+            "function allowed(target){" +
+            "if(!target||!target.closest)return false;" +
+            "if(target.closest(editor))return true;" +
+            "if(target.closest(interactive))return false;" +
+            "return !!target.closest(messages);" +
+            "}" +
+            "function block(e){if(allowed(e.target))return;" +
+            "e.preventDefault();e.stopPropagation();" +
+            "if(e.stopImmediatePropagation)e.stopImmediatePropagation();" +
+            "}" +
             "document.addEventListener('contextmenu',block,true);" +
             "document.addEventListener('selectstart',block,true);" +
             "})();";
@@ -80,6 +104,7 @@ public final class MainActivity extends Activity {
         WindowInsetsControllerCompat bars = new WindowInsetsControllerCompat(window, window.getDecorView());
         bars.setAppearanceLightStatusBars(!dark);
         bars.setAppearanceLightNavigationBars(!dark);
+        bars.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         FrameLayout root = new FrameLayout(this);
@@ -102,10 +127,30 @@ public final class MainActivity extends Activity {
         root.addView(progress, pp);
         root.addView(error, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        enterFullscreen();
 
         if (state != null && state.getBundle(STATE) != null) {
             if (web.restoreState(state.getBundle(STATE)) == null) web.loadUrl(AI_MODE);
         } else web.loadUrl(AI_MODE);
+    }
+
+    private void enterFullscreen() {
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller == null) return;
+        controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.systemBars());
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) getWindow().getDecorView().post(this::enterFullscreen);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        enterFullscreen();
     }
 
     private boolean isNightModeEnabled() {
@@ -136,9 +181,6 @@ public final class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
-        // Follow Android's current light/dark theme. Google pages that implement
-        // prefers-color-scheme use their own dark palette; algorithmic darkening
-        // is a fallback for content without a dark palette.
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(s, isNightModeEnabled());
         }
@@ -150,13 +192,7 @@ public final class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
                 if (u == null || !"https".equalsIgnoreCase(u.getScheme())) return true;
-
-                // The Google "G" home link must be a no-op inside AI Mode.
-                // It must never launch Chrome or leave this dedicated screen.
                 if (isGoogleHome(u)) return true;
-
-                // Only Google-owned HTTPS destinations are kept in this app.
-                // External schemes and non-Google sites are intentionally blocked.
                 return !googleHost(u.getHost());
             }
 
@@ -167,6 +203,7 @@ public final class MainActivity extends Activity {
 
             @Override public void onPageFinished(WebView v, String url) {
                 progress.setVisibility(View.GONE);
+                v.evaluateJavascript(PAGE_CLEANUP, null);
                 v.evaluateJavascript(CONTEXT_GUARD, null);
             }
 
@@ -312,6 +349,7 @@ public final class MainActivity extends Activity {
             fileCallback.onReceiveValue(selected);
             fileCallback = null;
         }
+        enterFullscreen();
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {

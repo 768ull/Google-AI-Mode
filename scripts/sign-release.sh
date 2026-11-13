@@ -14,9 +14,11 @@ APKSIGNER="$SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner"
 
 [[ -x "$APKSIGNER" ]] || { echo "apksigner não encontrado: $APKSIGNER" >&2; exit 1; }
 [[ -f "$INPUT_APK" ]] || { echo "APK de entrada não encontrado: $INPUT_APK" >&2; exit 1; }
+[[ -s "$ANDROID_KEYSTORE_PATH" ]] || { echo "Keystore vazio ou inexistente" >&2; exit 1; }
 
 "$APKSIGNER" sign \
   --ks "$ANDROID_KEYSTORE_PATH" \
+  --ks-type PKCS12 \
   --ks-key-alias "$ANDROID_KEY_ALIAS" \
   --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
   --key-pass env:ANDROID_KEY_PASSWORD \
@@ -28,5 +30,6 @@ APKSIGNER="$SDK_ROOT/build-tools/$BUILD_TOOLS_VERSION/apksigner"
   --out "$OUTPUT_APK" \
   "$INPUT_APK"
 
+[[ -s "$OUTPUT_APK.idsig" ]] || { echo "Assinatura V4 (.idsig) não foi gerada" >&2; exit 1; }
 "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 24 "$OUTPUT_APK"
 printf '\nAPK assinado: %s\nAssinatura V4: %s.idsig\n' "$OUTPUT_APK" "$OUTPUT_APK"

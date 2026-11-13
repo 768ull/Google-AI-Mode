@@ -1,29 +1,26 @@
 # AI Mode — aplicativo Android dedicado
 
-Este projeto substitui o WebAPK original por um aplicativo Android nativo (Java), sem a barra do Chrome, sem o título “Pesquisa Google”, sem o endereço google.com e sem o menu de três pontos.
+Aplicativo Android nativo (Java) dedicado ao Modo IA. Não exibe a barra do Chrome, a barra de endereço, o menu de três pontos nem a faixa de categorias da Pesquisa Google.
 
-**O que é nativo:** Activity, barras do sistema, carregamento, tela de erro, escolha de arquivos, permissões, ícone e fluxo de compilação. O conteúdo interativo do Modo IA é exibido em uma única Android System WebView, usando o mecanismo Chromium/Blink fornecido pelo Android. A biblioteca Jetpack WebKit complementa suas APIs; ela não é outro navegador nem um mecanismo independente.
+## Interface e interação
 
-## Recursos
-
-- Pinça de zoom e controles de zoom desativados.
-- Barras indicadoras de rolagem ocultas; a rolagem vertical do conteúdo continua ativa para respostas longas.
+- Tela cheia imersiva: oculta as barras de status e navegação do Android; elas reaparecem temporariamente com um gesto nas bordas.
+- Esconde somente a faixa de categorias do Google Search (Modo IA, Tudo, Imagens, Notícias, Vídeos, Shopping, Maps etc.); mantém o cabeçalho do Modo IA.
+- O toque no logotipo G que levaria à página inicial do Google é ignorado.
+- Zoom por pinça e controles de zoom desativados.
+- Barras indicadoras de rolagem ocultas; a rolagem normal da conversa continua habilitada.
 - Sem gesto de puxar para atualizar.
-- Sem barra de endereço, título de página, abas, menu de navegador ou janelas pop-up.
-- O toque no logotipo “G” do Google, que normalmente leva à página inicial, é ignorado; a tela permanece no Modo IA.
-- Tema claro/escuro acompanha a preferência de aparência do Android. A paleta da página é escolhida pelo próprio Google quando a página suporta `prefers-color-scheme`; o WebView pode aplicar escurecimento algorítmico como alternativa.
-- Menus de contexto e seleção de texto na interface estática são desativados. Campos de texto, caixas de entrada e conteúdo identificado como mensagens/conversas permanecem selecionáveis.
-- Navegação restrita a hosts Google necessários para a experiência; não transforma o WebView em navegador geral.
-- Seletor de arquivos Android e solicitação de microfone controlada por permissão e origem.
-- Ícone fornecido pelo usuário em formato legado e adaptativo.
-- R8 e remoção de recursos não usados no build release.
-- GitHub Actions para compilar APK debug e release unsigned; com Secrets de assinatura, gera release V1/V2/V3 e assinatura V4 lateral.
+- Menus de contexto e seleção de texto: permitidos apenas no campo de entrada e nos nós de mensagem do usuário/assistente (`user-query`, `model-response` e seletores de turnos equivalentes). Textos estáticos de recursos, funções, rótulos, navegação e botões não são selecionáveis.
+- Tema claro/escuro acompanha a preferência de aparência do Android.
+- Seletor de arquivos e permissão do microfone controlados pelo Android.
 
-## Limite importante: o serviço continua online
+Os seletores internos do Google são propriedade do Google e podem mudar sem aviso. O código usa os componentes de mensagens e a faixa de navegação observados no snapshot fornecido, mas futuras alterações na página podem exigir ajuste.
 
-O APK enviado é um WebAPK gerado a partir de uma instalação web. O HTML/MHTML salvo é apenas uma captura da página; não contém o backend do Modo IA, nem os modelos, nem os serviços de conta e resposta. Portanto, o aplicativo não consegue oferecer o Modo IA real offline nem remover toda dependência de rede. O endereço do serviço continua sendo acessado pela WebView, mas a interface de navegador do Chrome não aparece.
+## Arquitetura e dependência de rede
 
-O Android System WebView é fornecido pelo dispositivo e atualizado pelo sistema/loja. Empacotar Chromium inteiro dentro deste APK aumentaria muito o tamanho e não é o objetivo desta versão. O Google pode restringir login ou alguns fluxos em navegadores incorporados; o projeto não contorna essas políticas.
+Activity, barras do sistema, estados, seletor de arquivos, permissões, ícone e compilação são nativos. O conteúdo do Modo IA é renderizado em uma Android System WebView, usando o motor Chromium/Blink do próprio Android e APIs adicionais de Jetpack WebKit. A interface do navegador Chrome não aparece.
+
+O Modo IA continua sendo um serviço online do Google. O HTML/MHTML salvo é uma captura da página e não contém o backend, os modelos, o login nem os serviços necessários para operar offline.
 
 ## Compilar
 
@@ -34,43 +31,48 @@ gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
 ```
 
 Saídas:
+- app/build/outputs/apk/debug/app-debug.apk (pacote de teste separado, com sufixo .debug)
+- app/build/outputs/apk/release/app-release-unsigned.apk (não instalar; requer assinatura)
 
-- app/build/outputs/apk/debug/app-debug.apk
-- app/build/outputs/apk/release/app-release-unsigned.apk
+## Assinatura permanente para atualizações
 
-## Chave permanente de atualização
+**Não coloque o arquivo de chave no repositório público.** O arquivo PKCS#12 é uma chave privada: qualquer pessoa que o obtenha pode assinar atualizações falsas para este mesmo applicationId.
 
-A chave privada não está no repositório e não foi criada automaticamente. Gere uma única chave e mantenha cópias seguras offline:
+Foi gerada uma chave permanente fora do repositório:
+- Arquivo: `aimode-upload.p12`
+- Alias: `aimode-upload`
+- Tipo: PKCS#12
+- Senha: entregue separadamente ao proprietário do projeto.
 
-```bash
-keytool -genkeypair -v -keystore aimode-upload.jks -alias aimode-upload -keyalg RSA -keysize 4096 -validity 10000
-base64 -w 0 aimode-upload.jks
-```
+Faça backup offline. Não perca nem substitua esta chave; ela será usada em todas as versões futuras.
 
-No GitHub, em Settings → Secrets and variables → Actions, crie os Secrets:
+### Configuração única dos Secrets do GitHub
 
-- ANDROID_KEYSTORE_BASE64
-- ANDROID_KEYSTORE_PASSWORD
-- ANDROID_KEY_ALIAS
-- ANDROID_KEY_PASSWORD
+No repositório, abra **Settings → Secrets and variables → Actions → New repository secret**.
 
-O workflow usa essa mesma chave em atualizações futuras. V1, V2 e V3 ficam no APK. V4 gera um arquivo .apk.idsig separado, que deve ser distribuído junto quando necessário. Sem os quatro Secrets, a compilação gera APK debug e release sem assinatura.
+Crie exatamente estes dois Secrets:
+
+1. `ANDROID_KEYSTORE_BASE64`: conteúdo completo do arquivo `ANDROID_KEYSTORE_BASE64.txt` fornecido separadamente (não coloque espaços ou quebras de linha extras).
+2. `ANDROID_SIGNING_PASSWORD`: senha do arquivo PKCS#12, fornecida separadamente.
+
+O alias `aimode-upload` está configurado no workflow. A mesma senha protege o keystore e a chave.
+
+Depois, abra **Actions → Android APK → Run workflow** e selecione a branch `native-android-foundation`.
+
+Sem os dois Secrets, o workflow publica apenas um APK debug de teste (outro applicationId) e mostra um aviso; não publica um release que possa ser confundido com uma atualização.
+
+### Esquemas de assinatura
+
+O script habilita e verifica V1, V2 e V3 dentro do APK e cria a assinatura V4 em `app-release.apk.idsig`. A V4 é um arquivo lateral e deve acompanhar o APK quando for usada a instalação incremental.
+
+A versão anterior foi distribuída como APK debug, sem uma chave de lançamento persistente. Por isso, a transição para o primeiro APK assinado com esta chave exige desinstalar a versão debug uma última vez. Depois de instalar o APK release assinado com esta chave, futuras versões poderão ser instaladas por cima sem desinstalar, desde que a chave e o `applicationId` não mudem.
 
 ## Atualizações
 
-O identificador do app permanece `com.aimode.nativeclient`. A correção seguinte usa `versionCode 2` e `versionName 1.0.1`, para instalar sobre a versão 1.0.0 sem trocar o pacote. Não altere o applicationId nem troque a chave depois da primeira publicação. Incremente versionCode e versionName em cada versão.
+- applicationId: `com.aimode.nativeclient`
+- versionCode atual: 3
+- versionName atual: 1.0.2
 
-## Estrutura principal
-
-```text
-app/src/main/AndroidManifest.xml
-app/src/main/java/com/aimode/nativeclient/MainActivity.java
-app/src/main/res/values/
-app/src/main/res/values-night/
-app/src/main/res/values-v31/
-app/src/main/res/values-night-v31/
-.github/workflows/android.yml
-scripts/sign-release.sh
-```
+Incremente `versionCode` e `versionName` em cada versão. Nunca altere o `applicationId` nem troque a chave de assinatura depois da primeira instalação release.
 
 Este projeto independente não é afiliado nem endossado pelo Google.
