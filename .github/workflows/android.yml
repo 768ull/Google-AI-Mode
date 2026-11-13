@@ -106,13 +106,27 @@ jobs:
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
+      - name: Package apksigner for private signing
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
+        run: |
+          set -euo pipefail
+          TOOL_SOURCE="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION"
+          test -x "$TOOL_SOURCE/apksigner"
+          mkdir -p "$RUNNER_TEMP/apksigner-tools"
+          cp "$TOOL_SOURCE/apksigner" "$RUNNER_TEMP/apksigner-tools/"
+          cp -R "$TOOL_SOURCE/lib" "$RUNNER_TEMP/apksigner-tools/"
+          chmod +x "$RUNNER_TEMP/apksigner-tools/apksigner"
+          (cd "$RUNNER_TEMP/apksigner-tools" && zip -qr "$GITHUB_WORKSPACE/app/build/outputs/apk/release/apksigner-tools.zip" apksigner lib)
+
       - name: Upload unsigned release APK for private signing
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ai-mode-release-unsigned-needs-private-signing
           if-no-files-found: error
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/apksigner-tools.zip
           retention-days: 3
 
       - name: Upload permanently signed release APK and V4 signature
