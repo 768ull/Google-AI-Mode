@@ -20,8 +20,8 @@ O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, 
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 9
-- versionName: `1.0.8`
+- versionCode: 10
+- versionName: `1.0.9`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
@@ -37,9 +37,9 @@ As respostas do Modo IA recebem um botão **🔊 Ouvir**. A fala é gerada no pr
 O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso, o minSdk desta versão passa a ser 26 (Android 8.0).
 
 
-### Áudio integrado ao Modo IA (1.0.8)
+### Áudio integrado ao Modo IA (1.0.9)
 
-O controle de voz é inserido dentro de cada bloco de resposta do Modo IA como uma ação contextual **🔊 Ouvir** / **Parar áudio**. Não existe botão nativo flutuante sobre a tela. O texto é extraído apenas da resposta correspondente ao botão tocado.
+O controle de voz aparece dentro da barra de composição do próprio Modo IA, junto ao botão de envio, e também dentro dos blocos de resposta quando reconhecidos. Não existe botão nativo flutuante sobre a tela. Se o Google alterar a estrutura HTML das respostas, a ação na barra de composição continua disponível para ouvir a resposta mais recente.
 
 O runtime MediaPipe Tasks Audio foi atualizado para **1.2.2**. Na primeira abertura após a atualização, o cache local antigo do PocketTTS é removido e o modelo português é baixado novamente para evitar incompatibilidade entre o formato do pacote e o runtime atualizado. O arquivo oficial continua com o nome `pocket_tts_pt_int8.litertlm`, a voz `rafael` e o locale `pt-BR`.
 
