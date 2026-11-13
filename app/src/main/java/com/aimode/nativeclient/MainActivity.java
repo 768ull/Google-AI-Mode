@@ -105,10 +105,12 @@ public final class MainActivity extends Activity {
               }
               window.__aimodeAudioControlsInstalled = true;
 
+              // Only explicit assistant-message containers are eligible.
+              // Generic page selectors and data-testid wildcards can match controls,
+              // navigation, related questions, and other non-conversation UI.
               var answerSelector =
                 '[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],' +
-                '[data-testid*=response],[data-testid*=answer],[data-response-id],' +
-                'model-response,.model-response,.model-response-text,.response-content';
+                'model-response,model-response.model-response,.model-response-text,.response-content';
 
               var style = document.createElement('style');
               style.id = 'aimode-inline-audio-style';
@@ -132,11 +134,19 @@ public final class MainActivity extends Activity {
               function clean(node) {
                 if (!node) return '';
                 var clone = node.cloneNode(true);
+                // Keep only answer prose. Google adds action bars, feedback,
+                // source cards, citation controls and related UI beside answers.
+                // Those are not spoken, even when they sit inside the assistant root.
                 clone.querySelectorAll(
                   'button,a,svg,script,style,nav,footer,header,form,input,textarea,select,iframe,' +
-                  '[role=button],[role=link],[role=navigation],[aria-hidden=true],[contenteditable=true],' +
+                  '[role=button],[role=link],[role=menuitem],[role=toolbar],[role=navigation],' +
+                  '[aria-hidden=true],[aria-label],[contenteditable=true],' +
+                  '[data-testid*=button],[data-testid*=action],[data-testid*=source],' +
+                  '[data-testid*=citation],[data-testid*=feedback],[data-testid*=menu],' +
+                  '[class*=toolbar],[class*=action],[class*=citation],[class*=source],[class*=menu],' +
                   '.aimode-audio-row,.aimode-composer-audio-row'
                 ).forEach(function (item) { item.remove(); });
+
                 return (clone.innerText || clone.textContent || '')
                   .replace(new RegExp(String.fromCharCode(160), 'g'), ' ')
                   .replace(/[ \\t]+/g, ' ')
@@ -145,72 +155,49 @@ public final class MainActivity extends Activity {
               }
 
               function findAnswers() {
-                var root = document.querySelector('main,[role=main]') || document.body;
+                var root = document.querySelector('main,[role=main]');
+                if (!root) return [];
+
+                // No document/body-wide paragraph fallback: if Google changes its
+                // assistant markup, fail closed instead of reading unrelated UI.
                 var nodes = Array.from(root.querySelectorAll(answerSelector))
                   .filter(visible)
                   .map(function (node) { return {node: node, text: clean(node)}; })
-                  .filter(function (item) { return item.text.length >= 70 && item.text.length <= 20000; });
-
-                if (!nodes.length) {
-                  var paragraphs = Array.from(root.querySelectorAll('p,li,[role=paragraph]'))
-                    .filter(visible)
-                    .filter(function (node) {
-                      return !node.closest('form,textarea,input,[contenteditable=true],[role=textbox],nav,header,footer');
-                    });
-                  paragraphs.forEach(function (paragraph) {
-                    var parent = paragraph.parentElement;
-                    var best = paragraph;
-                    for (var depth = 0; parent && parent !== root && depth < 6; depth++, parent = parent.parentElement) {
-                      if (parent.querySelector('textarea,input,[contenteditable=true],[role=textbox]')) break;
-                      var value = clean(parent);
-                      if (value.length >= 70 && value.length <= 16000) best = parent;
-                      if (value.length > 16000) break;
-                    }
-                    var text = clean(best);
-                    if (text.length >= 70) nodes.push({node: best, text: text});
+                  .filter(function (item) {
+                    return item.text.length >= 20 && item.text.length <= 12000;
                   });
-                }
 
                 nodes.sort(function (a, b) {
                   if (a.node === b.node) return 0;
                   return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
                 });
 
+                // Keep the most specific matching assistant response nodes.
+                // Parent wrappers may also contain page controls or other turns.
                 var unique = [];
                 nodes.forEach(function (item) {
-                  var index = unique.findIndex(function (other) {
-                    return other.node === item.node || other.node.contains(item.node) || item.node.contains(other.node);
+                  var nested = unique.findIndex(function (other) {
+                    return item.node.contains(other.node);
                   });
-                  if (index < 0) {
-                    unique.push(item);
-                  } else {
-                    var existing = unique[index];
-                    if (item.node.contains(existing.node) && item.text.length >= existing.text.length * 0.72) {
-                      unique[index] = item;
-                    } else if (existing.node.contains(item.node) && existing.text.length < item.text.length) {
-                      unique[index] = item;
-                    }
+                  if (nested >= 0) {
+                    unique[nested] = item;
+                    return;
                   }
+                  var parent = unique.findIndex(function (other) {
+                    return other.node.contains(item.node);
+                  });
+                  if (parent >= 0) {
+                    if (item.text.length >= unique[parent].text.length * 0.72) unique[parent] = item;
+                    return;
+                  }
+                  unique.push(item);
                 });
-                return unique;
+                return unique.filter(function (item) { return item.text.length >= 20; });
               }
 
               function latestAnswerText() {
                 var answers = findAnswers();
-                if (answers.length) return answers[answers.length - 1].text;
-
-                var root = document.querySelector('main,[role=main]') || document.body;
-                var paragraphs = Array.from(root.querySelectorAll('p,li,[role=paragraph]'))
-                  .filter(visible)
-                  .filter(function (node) {
-                    return !node.closest('form,textarea,input,[contenteditable=true],[role=textbox],nav,header,footer');
-                  })
-                  .map(clean)
-                  .filter(function (text) { return text.length >= 35; });
-
-                if (paragraphs.length) return paragraphs.slice(-40).join(' ');
-                var fallback = clean(root);
-                return fallback.length >= 80 ? fallback.slice(-14000) : '';
+                return answers.length ? answers[answers.length - 1].text : '';
               }
 
               function setActive(button, active) {
