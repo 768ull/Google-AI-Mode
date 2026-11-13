@@ -20,8 +20,8 @@ O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, 
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 8
-- versionName: `1.0.7`
+- versionCode: 9
+- versionName: `1.0.8`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
@@ -37,11 +37,12 @@ As respostas do Modo IA recebem um botão **🔊 Ouvir**. A fala é gerada no pr
 O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso, o minSdk desta versão passa a ser 26 (Android 8.0).
 
 
-### Correção do botão de áudio (1.0.6)
+### Áudio integrado ao Modo IA (1.0.8)
 
-O controle **🔊 Ouvir resposta** agora é um botão nativo flutuante do Android, sempre visível sobre a página do Modo IA após o carregamento. Ele não depende das classes CSS ou dos atributos internos do Google, que podem mudar sem aviso. Ao tocar, o app tenta localizar o último texto de resposta na área principal e envia esse texto ao PocketTTS local. O mesmo botão muda para **Parar áudio** durante a reprodução.
+O controle de voz é inserido dentro de cada bloco de resposta do Modo IA como uma ação contextual **🔊 Ouvir** / **Parar áudio**. Não existe botão nativo flutuante sobre a tela. O texto é extraído apenas da resposta correspondente ao botão tocado.
 
+O runtime MediaPipe Tasks Audio foi atualizado para **1.2.2**. Na primeira abertura após a atualização, o cache local antigo do PocketTTS é removido e o modelo português é baixado novamente para evitar incompatibilidade entre o formato do pacote e o runtime atualizado. O arquivo oficial continua com o nome `pocket_tts_pt_int8.litertlm`, a voz `rafael` e o locale `pt-BR`.
 
-### Assinatura estável para futuras atualizações (1.0.7)
+### Assinatura estável (1.0.7 em diante)
 
-O workflow não gera mais chaves temporárias. Todo APK de release exige o keystore permanente `aimode-upload` e confere o fingerprint SHA-256 esperado antes de assinar. Sem os dois Secrets obrigatórios, a publicação para em vez de produzir um APK que não aceite atualização.
+O workflow usa a chave permanente `aimode-upload` quando os Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD` estão cadastrados. Se os Secrets estiverem ausentes, a compilação ainda termina e publica um artefato de release **sem assinatura** para assinatura privada posterior. O PKCS#12 e os Secrets nunca devem ser adicionados ao repositório público.
