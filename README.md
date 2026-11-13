@@ -20,8 +20,8 @@ V1, V2 e V3 são assinaturas dentro do APK. V4 é um arquivo lateral `.idsig`, p
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 6
-- versionName: `1.0.5`
+- versionCode: 7
+- versionName: `1.0.6`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
@@ -35,3 +35,8 @@ As respostas do Modo IA recebem um botão **🔊 Ouvir**. A fala é gerada no pr
 - O modelo tem licença CC-BY-4.0. A arquitetura, os pesos e as vozes originais são de Kyutai; pacote LiteRT disponibilizado por LiteRT Community. Consulte https://huggingface.co/litert-community/pocket-tts para atribuição e termos.
 
 O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso, o minSdk desta versão passa a ser 26 (Android 8.0).
+
+
+### Correção do botão de áudio (1.0.6)
+
+O controle **🔊 Ouvir resposta** agora é um botão nativo flutuante do Android, sempre visível sobre a página do Modo IA após o carregamento. Ele não depende das classes CSS ou dos atributos internos do Google, que podem mudar sem aviso. Ao tocar, o app tenta localizar o último texto de resposta na área principal e envia esse texto ao PocketTTS local. O mesmo botão muda para **Parar áudio** durante a reprodução.
