@@ -27,11 +27,15 @@ A publicação release exige a chave permanente guardada fora do repositório e 
 - Alias obrigatório: `aimode-upload`.
 - Certificado SHA-256 esperado: `0E:E2:BA:96:CF:B6:CD:09:64:C3:C2:AA:A7:58:77:D7:A5:C8:F8:B2:8C:74:99:E5:24:C6:94:90:93:1F:8C:24`.
 
-O workflow verifica a impressão digital antes de assinar e valida V1, V2, V3 e V4 (incluindo o arquivo `.idsig`). Sem os dois Secrets, somente um APK de teste separado e um arquivo unsigned de entrada privada são gerados; o arquivo unsigned não pode ser instalado. O PKCS#12 e os valores dos Secrets nunca devem ser adicionados a este repositório público.
+O workflow verifica a impressão digital e valida as assinaturas V1, V2, V3 e V4 (incluindo o arquivo `.idsig`) antes de publicar o APK. O repositório não contém a chave privada. Os dois Secrets são obrigatórios; sem eles, o build de publicação falha em vez de gerar um APK unsigned enganoso.
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
 
-## Nova chave de assinatura\n\nA chave permanente foi rotacionada. O novo certificado SHA-256 é `0E:E2:BA:96:CF:B6:CD:09:64:C3:C2:AA:A7:58:77:D7:A5:C8:F8:B2:8C:74:99:E5:24:C6:94:90:93:1F:8C:24`. Cadastre o P12 em Base64 e a senha nos Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. Nunca faça commit da chave privada. APKs instalados com certificados antigos exigem desinstalação única antes da migração.\n\n## Comportamento da tela inicial
+## Nova chave de assinatura
+
+A chave permanente foi rotacionada. O novo certificado SHA-256 é `0E:E2:BA:96:CF:B6:CD:09:64:C3:C2:AA:A7:58:77:D7:A5:C8:F8:B2:8C:74:99:E5:24:C6:94:90:93:1F:8C:24`. Cadastre o P12 em Base64 e a senha nos Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. Nunca faça commit da chave privada. APKs instalados com certificados antigos exigem desinstalação única antes da migração.
+
+## Comportamento da tela inicial
 
 Na tela inicial do Modo IA, o movimento vertical é bloqueado para manter o layout estático conforme a referência. Ao entrar em uma conversa, a rolagem vertical normal é restaurada para permitir navegar pelas mensagens.
