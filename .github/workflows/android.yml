@@ -1,4 +1,5 @@
 name: Android APK
+# 1.4.0: read-aloud is limited to explicit assistant response nodes.
 
 on:
   push:
