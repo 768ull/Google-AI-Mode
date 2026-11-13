@@ -110,7 +110,7 @@ public final class MainActivity extends Activity {
               // navigation, related questions, and other non-conversation UI.
               var answerSelector =
                 '[data-message-author-role=assistant],[data-role=assistant],[data-turn=assistant],' +
-                'model-response,model-response.model-response,.model-response-text,.response-content';
+                'model-response,.model-response,.model-response-text';
 
               var style = document.createElement('style');
               style.id = 'aimode-inline-audio-style';
