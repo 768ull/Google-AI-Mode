@@ -20,8 +20,8 @@ O workflow verifica a impressão digital antes de assinar. Sem os dois Secrets, 
 ## Versão
 
 - applicationId: `com.aimode.nativeclient`
-- versionCode: 10
-- versionName: `1.0.9`
+- versionCode: 12
+- versionName: `1.2.0`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
 
@@ -42,6 +42,10 @@ O runtime MediaPipe Tasks Audio 1.2.0 exige Android API 26 ou superior. Por isso
 O controle de voz aparece dentro da barra de composição do próprio Modo IA, junto ao botão de envio, e também dentro dos blocos de resposta quando reconhecidos. Não existe botão nativo flutuante sobre a tela. Se o Google alterar a estrutura HTML das respostas, a ação na barra de composição continua disponível para ouvir a resposta mais recente.
 
 O runtime MediaPipe Tasks Audio foi atualizado para **1.2.2**. Na primeira abertura após a atualização, o cache local antigo do PocketTTS é removido e o modelo português é baixado novamente para evitar incompatibilidade entre o formato do pacote e o runtime atualizado. O arquivo oficial continua com o nome `pocket_tts_pt_int8.litertlm`, a voz `rafael` e o locale `pt-BR`.
+
+### Reprodução de áudio em fluxo (1.2.0)
+
+A síntese agora usa a API `TtsStream` do MediaPipe: o áudio é produzido e reproduzido em blocos, sem manter toda a resposta em um único vetor de memória. O `AudioTrack` é reutilizado entre os blocos, a operação pode ser cancelada pelo botão **Parar** e o motor neural é fechado ao final da reprodução para devolver memória ao WebView. Se o Android ainda ficar sem memória durante a inferência, o aplicativo mostra uma mensagem em vez de tratar o caso como uma falha silenciosa.
 
 ### Assinatura estável (1.0.7 em diante)
 
