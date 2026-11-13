@@ -36,6 +36,17 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
+      - name: Require the permanent release signing key
+        if: github.event_name != 'pull_request'
+        env:
+          HAS_RELEASE_KEY: ${{ env.HAS_RELEASE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$HAS_RELEASE_KEY" != "true" ]; then
+            echo "::error title=Permanent signing key missing::Refusing to create a one-time signed APK. Add ANDROID_KEYSTORE_BASE64 and ANDROID_SIGNING_PASSWORD in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -64,31 +75,12 @@ jobs:
           echo "ANDROID_KEY_PASSWORD=$ANDROID_SIGNING_PASSWORD" >> "$GITHUB_ENV"
           echo "ANDROID_KEY_ALIAS=aimode-upload" >> "$GITHUB_ENV"
           echo "SIGNING_KEY_PERSISTENT=true" >> "$GITHUB_ENV"
-
-      # Fallback path: still produces a valid installable signed APK now.
-      # This generated key is intentionally one-time and is NOT suitable for
-      # installing future updates over this APK. Configure the two Secrets
-      # above to switch permanently to the stable owner key.
-      - name: Generate one-time release key when permanent key is not configured
-        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
-        run: |
-          set -euo pipefail
-          KEYSTORE_PATH="$RUNNER_TEMP/aimode-one-time.p12"
-          SIGNING_PASSWORD="$(openssl rand -hex 24)"
-          keytool -genkeypair -noprompt \
-            -alias aimode-upload \
-            -keyalg RSA -keysize 4096 -validity 10000 \
-            -storetype PKCS12 \
-            -keystore "$KEYSTORE_PATH" \
-            -storepass "$SIGNING_PASSWORD" -keypass "$SIGNING_PASSWORD" \
-            -dname "CN=AI Mode One-Time Release, O=AI Mode, C=BR"
-          test -s "$KEYSTORE_PATH"
-          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_KEYSTORE_PASSWORD=$SIGNING_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_PASSWORD=$SIGNING_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_ALIAS=aimode-upload" >> "$GITHUB_ENV"
-          echo "SIGNING_KEY_PERSISTENT=false" >> "$GITHUB_ENV"
-          echo "::warning title=One-time signing key::This APK is signed and installable, but future updates cannot use this temporary key. Configure repository Secrets to use the permanent key."
+          ACTUAL_FINGERPRINT="$(keytool -list -v -alias aimode-upload -keystore "$RUNNER_TEMP/aimode-upload.p12" -storetype PKCS12 -storepass "$ANDROID_SIGNING_PASSWORD" | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':')"
+          EXPECTED_FINGERPRINT="F33142C07D868605173800EE3C28EC3DF45F333FD5EAD4FD8ECCEE84526B471A"
+          if [ "${ACTUAL_FINGERPRINT^^}" != "$EXPECTED_FINGERPRINT" ]; then
+            echo "::error title=Unexpected signing certificate::The supplied keystore is not the permanent AI Mode upload key. Do not publish this APK."
+            exit 1
+          fi
 
       - name: Sign release with APK Signature Schemes V1–V4
         if: github.event_name != 'pull_request'
@@ -108,16 +100,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-mode-release-permanent-v1-v2-v3-v4
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release.apk.idsig
-
-      - name: Upload one-time signed release APK and V4 signature
-        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-mode-release-one-time-v1-v2-v3-v4
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/app-release.apk

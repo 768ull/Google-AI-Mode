@@ -8,14 +8,15 @@ GitHub Actions compila APK debug para pull requests e APK release para pushes/ma
 
 ## Assinatura
 
-O workflow tem dois caminhos:
+A publicação release **exige a chave permanente** armazenada nos Secrets do GitHub Actions:
 
-1. **Permanente (recomendado):** configura os Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. O alias é `aimode-upload`. A mesma chave será usada nas futuras versões e permite instalar atualizações por cima da versão anterior.
-2. **Temporário (fallback):** quando os Secrets não existem, o workflow gera uma chave nova durante a execução e entrega um APK release assinado V1/V2/V3/V4. Este APK é instalável, mas NÃO aceita atualizações futuras assinadas com outra chave; para atualizar depois, será preciso desinstalar este APK primeiro. Configure os Secrets para evitar isso.
+- `ANDROID_KEYSTORE_BASE64`: conteúdo Base64 do arquivo PKCS#12 permanente.
+- `ANDROID_SIGNING_PASSWORD`: senha do keystore e da chave.
+- Alias obrigatório: `aimode-upload`.
 
-A chave permanente PKCS#12 nunca deve ser colocada em repositório público. Faça backup offline e cadastre os dois Secrets em Settings → Secrets and variables → Actions.
+O workflow confere também a impressão digital SHA-256 do certificado permanente antes de assinar. Se os Secrets estiverem ausentes ou se o keystore não for o certificado esperado, a publicação é interrompida. **Não é gerada chave temporária.**
 
-V1, V2 e V3 são assinaturas dentro do APK. V4 é um arquivo lateral `.idsig`, publicado junto ao APK.
+Nunca coloque o arquivo PKCS#12 ou os valores dos Secrets no repositório público. Os APKs de release são assinados V1/V2/V3/V4; o arquivo V4 `.idsig` acompanha o APK.
 
 ## Versão
 
