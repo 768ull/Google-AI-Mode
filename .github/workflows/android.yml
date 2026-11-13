@@ -106,6 +106,14 @@ jobs:
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
+      - name: Upload debug APK for side-by-side testing
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-mode-1.2.0-debug-side-by-side-test-only
+          if-no-files-found: error
+          path: app/build/outputs/apk/debug/*.apk
+
       - name: Explain private signing handoff
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         run: |
