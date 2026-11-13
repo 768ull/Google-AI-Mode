@@ -87,9 +87,7 @@ public final class OnDeviceTtsController {
         if (cachedVersion == MODEL_CACHE_VERSION) return;
 
         File oldModel = modelFile();
-        if (oldModel.exists() && !oldModel.delete()) {
-            oldModel.deleteOnExit();
-        }
+        if (oldModel.exists()) oldModel.delete();
         File partial = new File(activity.getFilesDir(), MODEL_NAME + ".download");
         if (partial.exists()) partial.delete();
 
