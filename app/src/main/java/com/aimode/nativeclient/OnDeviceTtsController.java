@@ -15,7 +15,8 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.mediapipe.tasks.audio.texttospeech.AudioResult;
+import com.google.mediapipe.tasks.audio.texttospeech.AudioChunk;
+import com.google.mediapipe.tasks.audio.texttospeech.TtsStream;
 import com.google.mediapipe.tasks.audio.texttospeech.TextToSpeech;
 import com.google.mediapipe.tasks.audio.texttospeech.TextToSpeechOptions;
 import com.google.mediapipe.tasks.core.BaseOptions;
@@ -62,6 +63,7 @@ public final class OnDeviceTtsController {
     private final AtomicInteger requestGeneration = new AtomicInteger(0);
 
     private volatile TextToSpeech synthesizer;
+    private volatile TtsStream activeStream;
     private volatile AudioTrack audioTrack;
     private volatile HttpURLConnection activeConnection;
     private volatile AtomicBoolean downloadCancelled = new AtomicBoolean(false);
@@ -345,34 +347,88 @@ public final class OnDeviceTtsController {
         }
     }
 
+    /*
+     * Stream speech clause-by-clause instead of materializing the whole answer
+     * as one float[] AudioResult. This bounds peak audio memory and starts
+     * playback as soon as MediaPipe emits the first clause.
+     *
+     * The task is closed after each utterance. The WebView is memory-hungry
+     * too, so retaining the neural runtime between taps needlessly competes
+     * with Chromium for RAM on mid-range phones.
+     */
     private void synthesizeAndPlay(String text, int requestId) {
         if (destroyed || requestId != requestGeneration.get()) return;
+
+        TextToSpeech engine = null;
+        TtsStream stream = null;
+        AudioTrack output = null;
+        boolean completed = false;
+        boolean producedAudio = false;
+        int outputSampleRate = 0;
+        short[] pcmBuffer = new short[4096];
+
         try {
-            TextToSpeech engine = synthesizer;
-            if (engine == null) {
-                BaseOptions baseOptions = BaseOptions.builder()
-                        .setModelAssetPath(modelFile().getAbsolutePath())
-                        .setDelegate(Delegate.CPU)
-                        .build();
-                TextToSpeechOptions options = new TextToSpeechOptions(
-                        baseOptions,
-                        "rafael",
-                        "pt-BR",
-                        1.0f,
-                        0,
-                        activity.getCacheDir().getAbsolutePath()
-                );
-                engine = TextToSpeech.create(options);
-                if (destroyed || requestId != requestGeneration.get()) {
-                    engine.close();
-                    return;
+            BaseOptions baseOptions = BaseOptions.builder()
+                    .setModelAssetPath(modelFile().getAbsolutePath())
+                    .setDelegate(Delegate.CPU)
+                    .build();
+            TextToSpeechOptions options = new TextToSpeechOptions(
+                    baseOptions,
+                    "rafael",
+                    "pt-BR",
+                    1.0f,
+                    0,
+                    activity.getCacheDir().getAbsolutePath()
+            );
+
+            engine = TextToSpeech.create(options);
+            if (destroyed || requestId != requestGeneration.get()) return;
+            synthesizer = engine;
+
+            // finishInput=true tells MediaPipe that the complete answer is ready.
+            // readNext() yields one clause-sized PCM buffer at a time.
+            stream = engine.openStream(text, null, true);
+            activeStream = stream;
+
+            while (!destroyed && requestId == requestGeneration.get()) {
+                AudioChunk chunk = stream.readNext();
+                if (chunk == null) {
+                    completed = true;
+                    break;
                 }
-                synthesizer = engine;
+
+                float[] samples = chunk.getSamples();
+                if (samples == null || samples.length == 0) {
+                    continue;
+                }
+
+                int chunkSampleRate = chunk.getSampleRateHz();
+                if (output == null) {
+                    output = createAudioTrack(chunkSampleRate);
+                    outputSampleRate = chunkSampleRate;
+                    audioTrack = output;
+                    output.play();
+                } else if (chunkSampleRate != outputSampleRate) {
+                    throw new IllegalStateException(
+                            "A taxa de amostragem do áudio mudou durante a reprodução.");
+                }
+
+                writePcm(output, samples, pcmBuffer, requestId);
+                producedAudio = true;
+
+                // Drop references to the just-played chunk before pulling another.
+                samples = null;
+                chunk = null;
             }
 
-            AudioResult result = engine.synthesize(text);
-            if (destroyed || requestId != requestGeneration.get()) return;
-            playPcm(result.getSamples(), result.getSampleRateHz(), requestId);
+            if (completed && !producedAudio) {
+                throw new IllegalStateException("O modelo não retornou áudio.");
+            }
+        } catch (OutOfMemoryError error) {
+            if (!destroyed && requestId == requestGeneration.get()) {
+                postToMain(() -> showToast(
+                        "O celular ficou sem memória para gerar a voz. Feche outros aplicativos e tente novamente."));
+            }
         } catch (Exception error) {
             if (!destroyed && requestId == requestGeneration.get()) {
                 String message = error.getMessage() == null
@@ -380,17 +436,49 @@ public final class OnDeviceTtsController {
                 postToMain(() -> showToast("Erro ao gerar a voz: " + message));
             }
         } finally {
+            activeStream = null;
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (Exception ignored) {
+                }
+            }
+
+            if (output != null) {
+                try {
+                    if (completed && !destroyed && requestId == requestGeneration.get()
+                            && output.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                        // Streaming mode drains the remaining queued PCM on stop().
+                        output.stop();
+                    } else {
+                        output.pause();
+                        output.flush();
+                        output.stop();
+                    }
+                } catch (Exception ignored) {
+                }
+                try {
+                    output.release();
+                } catch (Exception ignored) {
+                }
+            }
+            audioTrack = null;
+
+            if (engine != null) {
+                if (synthesizer == engine) synthesizer = null;
+                try {
+                    engine.close();
+                } catch (Exception ignored) {
+                }
+            }
+
             if (requestId == requestGeneration.get()) {
                 postToMain(() -> setPageSpeaking(false));
             }
         }
     }
 
-    private void playPcm(float[] samples, int sampleRate, int requestId) {
-        if (samples == null || samples.length == 0) {
-            throw new IllegalStateException("O modelo não retornou áudio.");
-        }
-
+    private AudioTrack createAudioTrack(int sampleRate) {
         int minimumBuffer = AudioTrack.getMinBufferSize(
                 sampleRate,
                 AudioFormat.CHANNEL_OUT_MONO,
@@ -409,43 +497,54 @@ public final class OnDeviceTtsController {
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .build())
                 .setTransferMode(AudioTrack.MODE_STREAM)
-                .setBufferSizeInBytes(Math.max(minimumBuffer, 16 * 1024))
+                .setBufferSizeInBytes(Math.max(minimumBuffer, 32 * 1024))
                 .build();
 
-        audioTrack = output;
-        try {
-            if (output.getState() != AudioTrack.STATE_INITIALIZED) {
-                throw new IllegalStateException("O áudio não pôde ser inicializado.");
-            }
-            output.play();
-            short[] pcm = new short[4096];
+        if (output.getState() != AudioTrack.STATE_INITIALIZED) {
+            output.release();
+            throw new IllegalStateException("O áudio não pôde ser inicializado.");
+        }
+        return output;
+    }
 
-            for (int offset = 0; offset < samples.length; offset += pcm.length) {
-                if (destroyed || requestId != requestGeneration.get()) return;
-                int count = Math.min(pcm.length, samples.length - offset);
-                for (int i = 0; i < count; i++) {
-                    float value = Math.max(-1.0f, Math.min(1.0f, samples[offset + i]));
-                    pcm[i] = (short) Math.round(value * 32767.0f);
-                }
-                int written = output.write(pcm, 0, count, AudioTrack.WRITE_BLOCKING);
-                if (written < 0) {
-                    throw new IllegalStateException("Falha ao reproduzir o áudio (" + written + ").");
-                }
+    private void writePcm(AudioTrack output, float[] samples, short[] pcm,
+                          int requestId) throws InterruptedIOException {
+        for (int offset = 0; offset < samples.length; offset += pcm.length) {
+            if (destroyed || requestId != requestGeneration.get()) {
+                throw new InterruptedIOException("Reprodução cancelada.");
             }
-            if (requestId == requestGeneration.get()
-                    && output.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
-                output.stop();
+
+            int count = Math.min(pcm.length, samples.length - offset);
+            for (int i = 0; i < count; i++) {
+                float value = Math.max(-1.0f, Math.min(1.0f, samples[offset + i]));
+                pcm[i] = (short) Math.round(value * 32767.0f);
             }
-        } finally {
-            audioTrack = null;
-            try {
-                output.release();
-            } catch (Exception ignored) {
+
+            int writtenOffset = 0;
+            while (writtenOffset < count) {
+                if (destroyed || requestId != requestGeneration.get()) {
+                    throw new InterruptedIOException("Reprodução cancelada.");
+                }
+                int written = output.write(
+                        pcm, writtenOffset, count - writtenOffset, AudioTrack.WRITE_BLOCKING);
+                if (written <= 0) {
+                    throw new IllegalStateException(
+                            "Falha ao reproduzir o áudio (" + written + ").");
+                }
+                writtenOffset += written;
             }
         }
     }
 
     private void stopCurrentOutput() {
+        TtsStream stream = activeStream;
+        if (stream != null) {
+            try {
+                stream.cancel();
+            } catch (Exception ignored) {
+            }
+        }
+
         TextToSpeech current = synthesizer;
         if (current != null) {
             try {
