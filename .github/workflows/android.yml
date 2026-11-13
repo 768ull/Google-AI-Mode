@@ -106,17 +106,27 @@ jobs:
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
-      - name: Do not publish an unsigned release APK
+      - name: Explain private signing handoff
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         run: |
-          echo "::warning title=Release APK not published::The build completed, but no installable release was published because the permanent signing Secrets are missing."
+          echo "::warning title=Unsigned APK is not installable::The build completed without the permanent signing secrets. The APK below is only a private signing input and must not be installed or distributed."
           {
-            echo "### Release APK not published"
+            echo "### Private signing input (not installable)"
             echo
-            echo "The APK build completed, but the permanent signing Secrets are not configured. No unsigned APK was uploaded, to prevent an un-installable package from being mistaken for a release."
+            echo "The APK build completed, but GitHub Actions does not have the permanent signing Secrets. The artifact is uploaded only so the owner's permanent private key can sign it outside GitHub. Do not install or distribute the unsigned APK."
             echo
-            echo "Add `ANDROID_KEYSTORE_BASE64` and `ANDROID_SIGNING_PASSWORD` in repository Settings > Secrets and variables > Actions."
+            echo "Add `ANDROID_KEYSTORE_BASE64` and `ANDROID_SIGNING_PASSWORD` in repository Settings > Secrets and variables > Actions to enable automatic signed releases."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unsigned APK for private signing only
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-mode-1.1.0-unsigned-private-signing-source-NOT-INSTALLABLE
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/mapping/release/mapping.txt
 
       - name: Upload permanently signed release APK and V4 signature
         if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
