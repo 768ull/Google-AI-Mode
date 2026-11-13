@@ -1,5 +1,5 @@
 name: Android APK
-# 1.5.0: return to the original WebView app without read-aloud or local speech.
+# 1.6.0: lock vertical scrolling on the AI Mode landing screen only.
 
 on:
   push:
@@ -111,7 +111,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-1.5.0-debug-side-by-side-test-only
+          name: ai-mode-1.6.0-debug-side-by-side-test-only
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
 
