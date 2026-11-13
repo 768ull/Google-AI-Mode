@@ -56,37 +56,6 @@ public final class MainActivity extends Activity {
             "if(style.textContent!==css)style.textContent=css;" +
             "})();";
 
-    /*
-     * Context menus and text selection are allowed only in:
-     * - the prompt editor where the user types;
-     * - actual user-query message nodes;
-     * - actual assistant/model-response message nodes.
-     *
-     * Generic conversation containers, navigation, feature labels, resource
-     * names, buttons, links, and static tool labels are deliberately excluded.
-     */
-    private static final String CONTEXT_GUARD =
-            "(function(){if(window.__aimodeContextGuardInstalled)return;" +
-            "window.__aimodeContextGuardInstalled=true;" +
-            "var editor='input,textarea,select,[contenteditable=true],[role=textbox],[aria-multiline=true]';" +
-            "var messages='user-query,.user-query,.query-text,[data-turn=user],[data-role=user],[data-message-author-role=user]," +
-            "model-response,.model-response,.model-response-text,.response-content," +
-            "[data-turn=assistant],[data-role=assistant],[data-message-author-role=assistant]';" +
-            "var interactive='button,a,[role=button],[role=link],[role=menuitem]';" +
-            "function allowed(target){" +
-            "if(!target||!target.closest)return false;" +
-            "if(target.closest(editor))return true;" +
-            "if(target.closest(interactive))return false;" +
-            "return !!target.closest(messages);" +
-            "}" +
-            "function block(e){if(allowed(e.target))return;" +
-            "e.preventDefault();e.stopPropagation();" +
-            "if(e.stopImmediatePropagation)e.stopImmediatePropagation();" +
-            "}" +
-            "document.addEventListener('contextmenu',block,true);" +
-            "document.addEventListener('selectstart',block,true);" +
-            "})();";
-
     private WebView web;
     private ProgressBar progress;
     private LinearLayout error;
@@ -188,6 +157,8 @@ public final class MainActivity extends Activity {
         view.setVerticalScrollBarEnabled(false);
         view.setHorizontalScrollBarEnabled(false);
         view.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        // Keep Android WebView's native long-press text selection/context menu enabled.
+        view.setLongClickable(true);
         view.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
 
         WebSettings s = view.getSettings();
@@ -228,7 +199,6 @@ public final class MainActivity extends Activity {
             @Override public void onPageFinished(WebView v, String url) {
                 progress.setVisibility(View.GONE);
                 v.evaluateJavascript(PAGE_CLEANUP, null);
-                v.evaluateJavascript(CONTEXT_GUARD, null);
             }
 
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
