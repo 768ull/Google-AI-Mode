@@ -36,10 +36,8 @@ jobs:
         with:
           gradle-version: '9.6.0'
 
-      # Detect the secrets without failing the entire build. When they are absent,
-      # upload the unsigned release APK so it can be signed with the owner's key
-      # outside the public repository.
-      - name: Check permanent release signing secrets
+      # A release build must never report success while skipping signing.
+      - name: Require permanent release signing key
         id: signing
         if: github.event_name != 'pull_request'
         env:
@@ -48,16 +46,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          missing=()
-          [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || missing+=("ANDROID_KEYSTORE_BASE64")
-          [[ -n "$ANDROID_SIGNING_PASSWORD" ]] || missing+=("ANDROID_SIGNING_PASSWORD")
-          if (("${#missing[@]}" > 0)); then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Permanent release signing secrets missing::Missing Actions secret(s): ${missing[*]}. The build will continue and upload an unsigned release APK for signing with the owner's private key."
-          else
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Both permanent signing secrets are available."
-          fi
+          [[ -n "$ANDROID_KEYSTORE_BASE64" ]] || { echo "::error title=Missing release key::Add ANDROID_KEYSTORE_BASE64 to Repository Secrets."; exit 1; }
+          [[ -n "$ANDROID_SIGNING_PASSWORD" ]] || { echo "::error title=Missing signing password::Add ANDROID_SIGNING_PASSWORD to Repository Secrets."; exit 1; }
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "Permanent signing secrets are present."
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
@@ -114,28 +106,6 @@ jobs:
           name: ai-mode-1.6.0-debug-side-by-side-test-only
           if-no-files-found: error
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Explain private signing handoff
-        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
-        run: |
-          echo "::warning title=Unsigned APK is not installable::The build completed without the permanent signing secrets. The APK below is only a private signing input and must not be installed or distributed."
-          {
-            echo "### Private signing input (not installable)"
-            echo
-            echo "The APK build completed, but GitHub Actions does not have the permanent signing Secrets. The artifact is uploaded only so the owner's permanent private key can sign it outside GitHub. Do not install or distribute the unsigned APK."
-            echo
-            echo "Add `ANDROID_KEYSTORE_BASE64` and `ANDROID_SIGNING_PASSWORD` in repository Settings > Secrets and variables > Actions to enable automatic signed releases."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload unsigned APK for private signing only
-        if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-mode-1.5.0-unsigned-private-signing-source-NOT-INSTALLABLE
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            app/build/outputs/mapping/release/mapping.txt
 
       - name: Upload permanently signed release APK and V4 signature
         if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
