@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         enterFullscreen();
+        if (speech != null) speech.onResume();
     }
 
     private boolean isNightModeEnabled() {
