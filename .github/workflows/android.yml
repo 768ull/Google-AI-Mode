@@ -122,7 +122,7 @@ jobs:
         if: github.event_name != 'pull_request' && steps.signing.outputs.available != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ai-mode-1.1.0-unsigned-private-signing-source-NOT-INSTALLABLE
+          name: ai-mode-1.2.0-unsigned-private-signing-source-NOT-INSTALLABLE
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/app-release-unsigned.apk
