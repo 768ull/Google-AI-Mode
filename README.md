@@ -1,51 +1,26 @@
 # AI Mode — aplicativo Android dedicado
 
-Aplicativo Android nativo (Java) dedicado ao Modo IA. Não exibe a barra do Chrome, a barra de endereço, o menu de três pontos nem a faixa de categorias da Pesquisa Google.
+Aplicativo Android em Java para o Modo IA, sem barras do Chrome, com tema do sistema, tela imersiva e WebView do Android/Chromium.
 
-## Tela cheia e câmera frontal
+## Build
 
-- Modo imersivo: oculta as barras de status e navegação do Android; elas reaparecem temporariamente com um gesto nas bordas.
-- A janela ocupa a área do recorte da tela (câmera frontal/punch-hole), em vez de deixar uma faixa preta acima do conteúdo.
-- O layout não aplica padding superior do recorte; mantém as margens laterais de segurança e respeita o teclado virtual.
-- O atributo de recorte usa ALWAYS em Android 15+ e SHORT_EDGES em versões anteriores compatíveis.
+GitHub Actions compila APK debug para pull requests e APK release para pushes/manual runs da branch de publicação.
 
-## Interface e interação
+## Assinatura
 
-- Esconde somente a faixa de categorias do Google Search (Modo IA, Tudo, Imagens, Notícias, Vídeos, Shopping, Maps etc.); mantém o cabeçalho do Modo IA.
-- O toque no logotipo G que levaria à página inicial do Google é ignorado.
-- Zoom por pinça e controles de zoom desativados.
-- Barras indicadoras de rolagem ocultas; a rolagem normal da conversa continua habilitada.
-- Sem gesto de puxar para atualizar.
-- Menus de contexto e seleção de texto: permitidos apenas no campo de entrada e nos nós de mensagem do usuário/assistente. Textos estáticos de recursos, funções, rótulos, navegação e botões não são selecionáveis.
-- Tema claro/escuro acompanha a preferência de aparência do Android.
-- Seletor de arquivos e permissão do microfone controlados pelo Android.
+O workflow tem dois caminhos:
 
-Os seletores internos do Google são propriedade do Google e podem mudar sem aviso. O código usa os componentes observados no snapshot fornecido; futuras alterações na página podem exigir ajuste.
+1. **Permanente (recomendado):** configura os Secrets `ANDROID_KEYSTORE_BASE64` e `ANDROID_SIGNING_PASSWORD`. O alias é `aimode-upload`. A mesma chave será usada nas futuras versões e permite instalar atualizações por cima da versão anterior.
+2. **Temporário (fallback):** quando os Secrets não existem, o workflow gera uma chave nova durante a execução e entrega um APK release assinado V1/V2/V3/V4. Este APK é instalável, mas NÃO aceita atualizações futuras assinadas com outra chave; para atualizar depois, será preciso desinstalar este APK primeiro. Configure os Secrets para evitar isso.
 
-## Arquitetura e dependência de rede
+A chave permanente PKCS#12 nunca deve ser colocada em repositório público. Faça backup offline e cadastre os dois Secrets em Settings → Secrets and variables → Actions.
 
-Activity, barras do sistema, estados, seletor de arquivos, permissões, ícone e compilação são nativos. O conteúdo do Modo IA é renderizado em uma Android System WebView, usando o motor Chromium/Blink do próprio Android e APIs adicionais de Jetpack WebKit.
+V1, V2 e V3 são assinaturas dentro do APK. V4 é um arquivo lateral `.idsig`, publicado junto ao APK.
 
-O Modo IA continua sendo um serviço online do Google. O HTML/MHTML salvo é uma captura da página e não contém o backend, os modelos, o login nem os serviços necessários para operar offline.
+## Versão
 
-## Compilar
-
-Requisitos: JDK 21, Android SDK Platform 36, Build Tools 36.0.0 e Gradle 9.6.0.
-
-gradle --no-daemon clean :app:assembleDebug :app:assembleRelease
-
-## Assinatura permanente para atualizações
-
-A chave PKCS#12 privada fica fora do repositório público. Os Secrets esperados no GitHub são ANDROID_KEYSTORE_BASE64 e ANDROID_SIGNING_PASSWORD. O alias é aimode-upload. Em eventos push e workflow_dispatch, o workflow interrompe a execução imediatamente se os Secrets não existirem; assim, não mostra uma compilação de publicação como concluída sem assinatura. Somente pull requests de forks sem acesso a Secrets podem gerar um APK debug de teste, que não deve ser instalado como atualização.
-
-O script habilita e verifica V1, V2 e V3 dentro do APK, e cria V4 em um arquivo .idsig separado. A primeira migração de APK debug para release assinado exige instalação separada; depois, futuras atualizações podem instalar por cima desde que a chave e o applicationId não mudem.
-
-## Atualizações
-
-- applicationId: com.aimode.nativeclient
-- versionCode atual: 4
-- versionName atual: 1.0.3
-
-Incremente versionCode e versionName em cada versão. Nunca altere o applicationId nem troque a chave depois da primeira instalação release.
+- applicationId: `com.aimode.nativeclient`
+- versionCode: 5
+- versionName: `1.0.4`
 
 Este projeto independente não é afiliado nem endossado pelo Google.
